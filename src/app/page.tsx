@@ -162,7 +162,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.1.0';
+const APP_VERSION = 'v1.1.1';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -243,6 +243,7 @@ export default function CrateTracker() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'r' || e.key === 'R') { e.preventDefault(); addRecord('Rare'); }
       if (e.key === 'b' || e.key === 'B') { e.preventDefault(); addRecord('Big Rare'); }
       if (e.key === 'e' || e.key === 'E') { e.preventDefault(); addRecord('Epic'); }
