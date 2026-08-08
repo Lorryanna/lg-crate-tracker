@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -171,14 +171,7 @@ export default function CrateTracker() {
 
   const [importText, setImportText] = useState('');
   const [showHistory, setShowHistory] = useState(false);
-  const recordEndRef = useRef<HTMLDivElement>(null);
-
-  // ─── Auto-scroll to bottom when new records added ─────
-
-  useEffect(() => {
-    recordEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [records.length]);
-
+  
   // ─── Computed scan & stats ─────────────────────────────
 
   const scanResult: ScanResult | null = useMemo(() => {
@@ -526,7 +519,7 @@ export default function CrateTracker() {
                               </div>
                             );
                           })}
-                          <div ref={recordEndRef} />
+
                         </>
                       )}
                     </div>
