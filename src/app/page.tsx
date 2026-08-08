@@ -41,7 +41,6 @@ import {
   History,
   Grid3X3,
   List,
-  WifiOff,
   Save,
 } from 'lucide-react';
 import type { Rarity } from '@/lib/crate-scanner';
@@ -285,10 +284,7 @@ export default function CrateTracker() {
               <h1 className="text-lg sm:text-xl font-bold tracking-tight">
                 LG Crate Tracker
               </h1>
-              <Badge variant="secondary" className="text-xs font-normal hidden sm:inline-flex gap-1">
-                <WifiOff className="h-3 w-3" />
-                Hors-ligne
-              </Badge>
+
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
               <Dialog>
@@ -776,7 +772,7 @@ export default function CrateTracker() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 text-center text-xs text-muted-foreground">
             LG Crate Tracker — Basé sur les recherches de Daa, OxKing, pho et la communauté.
             <br className="sm:hidden" />{' '}
-            <span className="inline-flex items-center gap-1"><WifiOff className="h-3 w-3" /> Données stockées localement dans ton navigateur.</span>
+            <span>Données stockées localement dans ton navigateur.</span>
           </div>
         </footer>
       </div>
