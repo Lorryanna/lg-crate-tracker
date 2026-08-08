@@ -162,6 +162,8 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
+const APP_VERSION = 'v1.1.0';
+
 export default function CrateTracker() {
   const records = useSyncExternalStore(
     subscribeToStorage,
@@ -763,7 +765,7 @@ export default function CrateTracker() {
         {/* ─── Footer ──────────────────────────────────── */}
         <footer className="border-t bg-white/80 backdrop-blur-sm mt-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 text-center text-xs text-muted-foreground">
-            LG Crate Tracker — Basé sur les recherches de Daa, OxKing, pho et la communauté.
+            LG Crate Tracker {APP_VERSION} — Basé sur les recherches de Daa, OxKing, pho et la communauté.
             <br className="sm:hidden" />{' '}
             <span>Données stockées localement dans ton navigateur.</span>
           </div>
