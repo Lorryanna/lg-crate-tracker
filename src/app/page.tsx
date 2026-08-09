@@ -25,18 +25,17 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  Plus,
+  Star,
+  Sparkles,
   Trash2,
   RotateCcw,
   Upload,
   Download,
   HelpCircle,
-  Star,
   ChevronRight,
   Info,
   ShieldCheck,
   Swords,
-  Sparkles,
   Trophy,
   History,
   Grid3X3,
@@ -162,7 +161,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.3.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -282,23 +281,22 @@ export default function CrateTracker() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="min-h-screen flex flex-col bg-gradient-to-br from-stone-50 to-stone-100">
+      <div className="h-screen flex flex-col bg-gradient-to-br from-stone-50 to-stone-100 overflow-hidden">
 
-        {/* ─── Header ──────────────────────────────────── */}
-        <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+        {/* ─── Header (compact) ────────────────────────── */}
+        <header className="border-b bg-white/80 backdrop-blur-sm shrink-0">
+          <div className="max-w-[1600px] mx-auto px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Swords className="h-5 w-5 text-amber-500" />
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight">
+              <Swords className="h-4 w-4 text-amber-500" />
+              <h1 className="text-sm font-bold tracking-tight">
                 LG Crate Tracker
               </h1>
-
             </div>
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex items-center gap-1">
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <Upload className="h-3.5 w-3.5" />
+                  <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+                    <Upload className="h-3 w-3" />
                     <span className="hidden sm:inline">Importer</span>
                   </Button>
                 </DialogTrigger>
@@ -331,9 +329,9 @@ export default function CrateTracker() {
                   <Button
                     variant="outline" size="sm"
                     disabled={records.length === 0}
-                    className="gap-1.5"
+                    className="h-7 gap-1.5 text-xs"
                   >
-                    <Download className="h-3.5 w-3.5" />
+                    <Download className="h-3 w-3" />
                     <span className="hidden sm:inline">Exporter</span>
                   </Button>
                 </DialogTrigger>
@@ -357,8 +355,8 @@ export default function CrateTracker() {
 
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <HelpCircle className="h-3.5 w-3.5" />
+                  <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+                    <HelpCircle className="h-3 w-3" />
                     <span className="hidden sm:inline">Aide</span>
                   </Button>
                 </DialogTrigger>
@@ -411,107 +409,320 @@ export default function CrateTracker() {
           </div>
         </header>
 
-        {/* ─── Main Content ────────────────────────────── */}
-        <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-4 sm:py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+        {/* ─── Main Content (fills remaining height) ──── */}
+        <main className="flex-1 overflow-hidden max-w-[1600px] mx-auto w-full px-4 py-3">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full">
 
-            {/* ─── Left Column: Record ──────────────────── */}
-            <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+            {/* ─── Left Column: Controls + Stats ───────── */}
+            <div className="lg:col-span-4 xl:col-span-3 overflow-y-auto">
+              <div className="space-y-3">
 
-              {/* Add Buttons */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Ajouter un crate
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-2">
-                    {RARITY_CONFIG.map((c) => (
-                      <Tooltip key={c.rarity}>
+                {/* Add Buttons — compact */}
+                <Card>
+                  <CardContent className="p-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      {RARITY_CONFIG.map((c) => (
+                        <Tooltip key={c.rarity}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={`h-10 gap-1.5 border-2 text-xs font-semibold transition-all active:scale-95 ${c.color}`}
+                              onClick={() => addRecord(c.rarity)}
+                            >
+                              {c.icon}
+                              <span className={c.textColor}>{c.label}</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Touche <kbd className="px-1 py-0.5 bg-muted rounded text-xs font-mono">{c.shortLabel}</kbd>
+                          </TooltipContent>
+                        </Tooltip>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
-                            variant="outline"
-                            className={`h-12 gap-2 border-2 text-sm font-semibold transition-all active:scale-95 ${c.color}`}
-                            onClick={() => addRecord(c.rarity)}
+                            variant="ghost" size="sm"
+                            onClick={deleteLast}
+                            disabled={records.length === 0}
+                            className="gap-1 text-destructive hover:text-destructive h-7 text-xs"
                           >
-                            {c.icon}
-                            <span className={c.textColor}>{c.label}</span>
+                            <Trash2 className="h-3 w-3" />
+                            Annuler dernier
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>
-                          Touche <kbd className="px-1 py-0.5 bg-muted rounded text-xs font-mono">{c.shortLabel}</kbd>
-                        </TooltipContent>
+                        <TooltipContent>Suppr / Retour arrière</TooltipContent>
                       </Tooltip>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost" size="sm"
-                          onClick={deleteLast}
-                          disabled={records.length === 0}
-                          className="gap-1.5 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Annuler dernier
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Suppr / Retour arrière</TooltipContent>
-                    </Tooltip>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          variant="ghost" size="sm"
-                          disabled={records.length === 0}
-                          className="gap-1.5 text-destructive hover:text-destructive"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Tout effacer
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Effacer tout ?</DialogTitle>
-                          <DialogDescription>
-                            Cette action est irréversible. Tous vos enregistrements seront supprimés.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter>
-                          <DialogClose asChild>
-                            <Button variant="outline">Annuler</Button>
-                          </DialogClose>
-                          <Button variant="destructive" onClick={clearAll}>Effacer</Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </CardContent>
-              </Card>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="ghost" size="sm"
+                            disabled={records.length === 0}
+                            className="gap-1 text-destructive hover:text-destructive h-7 text-xs"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Tout effacer
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Effacer tout ?</DialogTitle>
+                            <DialogDescription>
+                              Cette action est irréversible. Tous vos enregistrements seront supprimés.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <DialogFooter>
+                            <DialogClose asChild>
+                              <Button variant="outline">Annuler</Button>
+                            </DialogClose>
+                            <Button variant="destructive" onClick={clearAll}>Effacer</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              {/* Record List */}
-              <Card>
-                <CardHeader className="pb-3">
+                {/* Progress banner before scan threshold */}
+                {!scanResult && records.length > 0 && (
+                  <Card className="border-amber-200 bg-amber-50">
+                    <CardContent className="py-2.5 px-3 flex items-center gap-2.5">
+                      <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-amber-800">
+                          <strong>{CYCLE_SIZE * 3 - records.length} crates</strong> restants avant le scan.
+                        </p>
+                        <div className="w-full h-1.5 bg-amber-200 rounded-full mt-1 overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.min(100, (records.length / (CYCLE_SIZE * 3)) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Scan result banner */}
+                {scanResult && (
+                  <Card className={scanResult.valid ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}>
+                    <CardContent className="py-2.5 px-3 flex items-start gap-2.5">
+                      {scanResult.valid ? (
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <Info className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                      )}
+                      <div className="min-w-0">
+                        <p className={`text-xs font-medium ${scanResult.valid ? 'text-emerald-800' : 'text-red-800'}`}>
+                          {scanResult.message}
+                        </p>
+                        {scanResult.valid && (
+                          <p className="text-[11px] text-emerald-600 mt-0.5">
+                            {scanResult.totalCycles} cycle(s) complet(s) • Position: {scanResult.currentCyclePosition}/{CYCLE_SIZE}
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Cycle Stats — compact horizontal */}
+                {cycleStats && scanResult?.valid && (
+                  <Card>
+                    <CardHeader className="pb-2 pt-3 px-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-xs font-medium flex items-center gap-1.5">
+                          <Grid3X3 className="h-3.5 w-3.5" />
+                          Cycle en cours
+                        </CardTitle>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {progressPercent}%
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-3">
+                      <div className="w-full h-1.5 bg-muted rounded-full mb-3 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-300"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {RARITY_CONFIG.map((c) => {
+                          const stat = cycleStats[c.rarity];
+                          const isComplete = stat.remaining <= 0;
+                          return (
+                            <div
+                              key={c.rarity}
+                              className={`rounded-md border-2 p-2 ${
+                                isComplete
+                                  ? 'border-emerald-300 bg-emerald-50'
+                                  : `${c.color} border`
+                              }`}
+                            >
+                              <div className="flex items-center gap-1 mb-1">
+                                {c.icon}
+                                <span className={`text-[11px] font-semibold ${c.textColor}`}>{c.label}</span>
+                              </div>
+                              <div className="flex items-baseline gap-0.5">
+                                <span className={`text-lg font-bold ${c.textColor}`}>{stat.dropped}</span>
+                                <span className="text-[10px] text-muted-foreground">/ {c.expected}</span>
+                              </div>
+                              <div className="mt-1 w-full h-1 bg-black/10 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${
+                                    c.rarity === 'Rare' ? 'bg-sky-400'
+                                    : c.rarity === 'Big Rare' ? 'bg-cyan-500'
+                                    : c.rarity === 'Epic' ? 'bg-purple-500'
+                                    : 'bg-amber-500'
+                                  }`}
+                                  style={{ width: `${Math.min(100, (stat.dropped / c.expected) * 100)}%` }}
+                                />
+                              </div>
+                              <div className={`text-[10px] mt-0.5 font-medium ${
+                                isComplete ? 'text-emerald-600' : 'text-muted-foreground'
+                              }`}>
+                                {isComplete ? '✓ Complété' : `${stat.remaining} restant${stat.remaining > 1 ? 's' : ''}`}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Legendary alerts */}
+                      {legendDropped > 0 && (
+                        <div className="mt-3 p-2 rounded-md bg-emerald-50 border border-emerald-200 flex items-center gap-2">
+                          <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          <p className="text-[11px] text-emerald-800">
+                            <strong>Legendary obtenu ce cycle !</strong> Mode auto sans risque.
+                          </p>
+                        </div>
+                      )}
+                      {legendDropped === 0 && legendRemaining === 1 && progressPercent > 50 && (
+                        <div className="mt-3 p-2 rounded-md bg-amber-50 border border-amber-200 flex items-center gap-2">
+                          <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          <p className="text-[11px] text-amber-800">
+                            <strong>Legendary pas encore tombé.</strong>{' '}
+                            {progressPercent > 85
+                              ? 'Ça devrait tomber bientôt !'
+                              : 'Continue à enregistrer.'}
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Cycle Visualization */}
+                {scanResult?.valid && (
+                  <Card>
+                    <CardHeader className="pb-2 pt-3 px-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-xs font-medium flex items-center gap-1.5">
+                          <History className="h-3.5 w-3.5" />
+                          Visualisation du cycle
+                        </CardTitle>
+                        {scanResult.cycleHistory.length > 1 && (
+                          <Button
+                            variant="ghost" size="sm"
+                            onClick={() => setShowHistory(!showHistory)}
+                            className="h-6 gap-1 text-[10px] px-1.5"
+                          >
+                            <History className="h-3 w-3" />
+                            {showHistory ? 'Actuel' : `${scanResult.cycleHistory.length} cycles`}
+                          </Button>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-3">
+                      {!showHistory ? (
+                        <CycleGrid
+                          cycle={scanResult.incompleteCycle.length > 0
+                            ? scanResult.incompleteCycle
+                            : scanResult.currentCycle}
+                          cycleSize={CYCLE_SIZE}
+                        />
+                      ) : (
+                        <div className="space-y-4">
+                          {scanResult.cycleHistory.map((cycle, i) => (
+                            <div key={i}>
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className="text-[11px] font-medium text-muted-foreground">Cycle {i + 1}</span>
+                                {scanResult.cycleValidities[i] ? (
+                                  <Badge variant="outline" className="text-[9px] text-emerald-600 border-emerald-300">✓ Valide</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[9px] text-red-600 border-red-300">✗ Invalide</Badge>
+                                )}
+                              </div>
+                              <CycleGrid cycle={cycle} cycleSize={CYCLE_SIZE} />
+                            </div>
+                          ))}
+                          {scanResult.incompleteCycle.length > 0 && (
+                            <div>
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className="text-[11px] font-medium text-muted-foreground">
+                                  En cours ({scanResult.incompleteCycle.length}/{CYCLE_SIZE})
+                                </span>
+                                <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-300">En cours</Badge>
+                              </div>
+                              <CycleGrid cycle={scanResult.incompleteCycle} cycleSize={CYCLE_SIZE} />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Summary — compact inline */}
+                <Card>
+                  <CardContent className="py-2.5 px-3">
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div>
+                        <div className="text-base font-bold font-mono">{records.length}</div>
+                        <div className="text-[10px] text-muted-foreground">Total</div>
+                      </div>
+                      <div>
+                        <div className="text-base font-bold font-mono">{scanResult?.totalCycles ?? 0}</div>
+                        <div className="text-[10px] text-muted-foreground">Cycles</div>
+                      </div>
+                      <div>
+                        <div className="text-base font-bold font-mono text-amber-600">{records.filter((r) => r === 'Legendary').length}</div>
+                        <div className="text-[10px] text-muted-foreground">Légendaires</div>
+                      </div>
+                      <div>
+                        <div className="text-base font-bold font-mono">{scanResult?.currentCyclePosition ?? '-'}</div>
+                        <div className="text-[10px] text-muted-foreground">Position</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {/* ─── Right Column: History (full height) ──── */}
+            <div className="lg:col-span-8 xl:col-span-9 flex flex-col min-h-0">
+              <Card className="flex-1 flex flex-col min-h-0">
+                <CardHeader className="pb-2 pt-3 px-3 shrink-0">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <List className="h-4 w-4" />
+                    <CardTitle className="text-xs font-medium flex items-center gap-1.5">
+                      <List className="h-3.5 w-3.5" />
                       Historique
                     </CardTitle>
-                    <Badge variant="outline" className="text-xs font-mono">
+                    <Badge variant="outline" className="text-[10px] font-mono">
                       #{records.length}
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0">
-                  <ScrollArea className="h-[300px] sm:h-[400px]">
-                    <div className="px-4 pb-4 space-y-0.5">
+                <CardContent className="p-0 flex-1 min-h-0">
+                  <ScrollArea className="h-full">
+                    <div className="px-3 pb-3 space-y-0.5">
                       {records.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                           <Swords className="h-10 w-10 mb-2 opacity-30" />
                           <p className="text-sm">Aucun enregistrement</p>
-                          <p className="text-xs">Cliquez sur les boutons ci-dessus</p>
+                          <p className="text-xs">Clique sur les boutons à gauche</p>
                         </div>
                       ) : (
                         <>
@@ -522,11 +733,9 @@ export default function CrateTracker() {
                             return (
                               <div
                                 key={i}
-                                className={
-                                  `flex items-center gap-2 px-2 py-1 rounded-md text-xs ${config.color}`
-                                }
+                                className={`flex items-center gap-2 px-2 py-0.5 rounded text-xs ${config.color}`}
                               >
-                                <span className="text-muted-foreground font-mono w-8 text-right shrink-0">
+                                <span className="text-muted-foreground font-mono w-7 text-right shrink-0">
                                   {i + 1}
                                 </span>
                                 <span
@@ -541,14 +750,13 @@ export default function CrateTracker() {
                                 />
                                 <span className={config.textColor + ' font-medium'}>{config.label}</span>
                                 {isCycleStart && (
-                                  <Badge variant="outline" className="ml-auto text-[10px] border-amber-400 text-amber-600">
+                                  <Badge variant="outline" className="ml-auto text-[9px] border-amber-400 text-amber-600">
                                     Cycle ↓
                                   </Badge>
                                 )}
                               </div>
                             );
                           })}
-
                         </>
                       )}
                     </div>
@@ -556,245 +764,13 @@ export default function CrateTracker() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* ─── Right Column: Analysis ───────────────── */}
-            <div className="lg:col-span-7 xl:col-span-8 space-y-4">
-
-              {/* Progress banner before scan threshold */}
-              {!scanResult && records.length > 0 && (
-                <Card className="border-amber-200 bg-amber-50">
-                  <CardContent className="py-3 px-4 flex items-center gap-3">
-                    <Info className="h-4 w-4 text-amber-500 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm text-amber-800">
-                        <strong>{CYCLE_SIZE * 3 - records.length} crates</strong> restants avant le scan automatique.
-                      </p>
-                      <div className="w-full h-1.5 bg-amber-200 rounded-full mt-1.5 overflow-hidden">
-                        <div
-                          className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.min(100, (records.length / (CYCLE_SIZE * 3)) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Scan result banner */}
-              {scanResult && (
-                <Card className={scanResult.valid ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}>
-                  <CardContent className="py-3 px-4 flex items-start gap-3">
-                    {scanResult.valid ? (
-                      <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                    ) : (
-                      <Info className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                    )}
-                    <div className="min-w-0">
-                      <p className={`text-sm font-medium ${scanResult.valid ? 'text-emerald-800' : 'text-red-800'}`}>
-                        {scanResult.message}
-                      </p>
-                      {scanResult.valid && (
-                        <p className="text-xs text-emerald-600 mt-0.5">
-                          {scanResult.totalCycles} cycle(s) complet(s) • Position: {scanResult.currentCyclePosition}/{CYCLE_SIZE}
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Cycle Stats */}
-              {cycleStats && scanResult?.valid && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <Grid3X3 className="h-4 w-4" />
-                      Cycle en cours
-                      <Badge variant="secondary" className="text-xs ml-auto">
-                        {progressPercent}%
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="w-full h-2 bg-muted rounded-full mb-4 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-300"
-                        style={{ width: `${progressPercent}%` }}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {RARITY_CONFIG.map((c) => {
-                        const stat = cycleStats[c.rarity];
-                        const isComplete = stat.remaining <= 0;
-                        return (
-                          <div
-                            key={c.rarity}
-                            className={`rounded-lg border-2 p-3 transition-all ${
-                              isComplete
-                                ? 'border-emerald-300 bg-emerald-50'
-                                : `${c.color} border`
-                            }`}
-                          >
-                            <div className="flex items-center gap-1.5 mb-2">
-                              {c.icon}
-                              <span className={`text-xs font-semibold ${c.textColor}`}>{c.label}</span>
-                            </div>
-                            <div className="flex items-baseline gap-1">
-                              <span className={`text-2xl font-bold ${c.textColor}`}>{stat.dropped}</span>
-                              <span className="text-xs text-muted-foreground">/ {c.expected}</span>
-                            </div>
-                            <div className="mt-1.5 w-full h-1.5 bg-black/10 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  c.rarity === 'Rare' ? 'bg-sky-400'
-                                  : c.rarity === 'Big Rare' ? 'bg-cyan-500'
-                                  : c.rarity === 'Epic' ? 'bg-purple-500'
-                                  : 'bg-amber-500'
-                                }`}
-                                style={{ width: `${Math.min(100, (stat.dropped / c.expected) * 100)}%` }}
-                              />
-                            </div>
-                            <div className={`text-xs mt-1 font-medium ${
-                              isComplete ? 'text-emerald-600' : 'text-muted-foreground'
-                            }`}>
-                              {isComplete ? '✓ Complété' : `${stat.remaining} restant${stat.remaining > 1 ? 's' : ''}`}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Legendary alerts */}
-                    {legendDropped > 0 && (
-                      <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center gap-2">
-                        <Trophy className="h-4 w-4 text-amber-500 shrink-0" />
-                        <p className="text-sm text-emerald-800">
-                          <strong>Legendary obtenu ce cycle !</strong> Tu peux jouer en mode auto sans risque.
-                        </p>
-                      </div>
-                    )}
-                    {legendDropped === 0 && legendRemaining === 1 && progressPercent > 50 && (
-                      <div className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2">
-                        <Trophy className="h-4 w-4 text-amber-500 shrink-0" />
-                        <p className="text-sm text-amber-800">
-                          <strong>Legendary pas encore tombé.</strong>{' '}
-                          {progressPercent > 85
-                            ? 'Ça devrait tomber bientôt ! Assure-toi d\'avoir des slots libres.'
-                            : 'Continue à enregistrer tes crates.'}
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Cycle Visualization */}
-              {scanResult?.valid && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <History className="h-4 w-4" />
-                        Visualisation du cycle
-                      </CardTitle>
-                      {scanResult.cycleHistory.length > 1 && (
-                        <Button
-                          variant="ghost" size="sm"
-                          onClick={() => setShowHistory(!showHistory)}
-                          className="gap-1 text-xs"
-                        >
-                          <History className="h-3 w-3" />
-                          {showHistory ? 'Cycle actuel' : `${scanResult.cycleHistory.length} cycles`}
-                        </Button>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {!showHistory ? (
-                      <CycleGrid
-                        cycle={scanResult.incompleteCycle.length > 0
-                          ? scanResult.incompleteCycle
-                          : scanResult.currentCycle}
-                        cycleSize={CYCLE_SIZE}
-                      />
-                    ) : (
-                      <div className="space-y-6">
-                        {scanResult.cycleHistory.map((cycle, i) => (
-                          <div key={i}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs font-medium text-muted-foreground">Cycle {i + 1}</span>
-                              {scanResult.cycleValidities[i] ? (
-                                <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300">✓ Valide</Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-[10px] text-red-600 border-red-300">✗ Invalide</Badge>
-                              )}
-                            </div>
-                            <CycleGrid cycle={cycle} cycleSize={CYCLE_SIZE} />
-                          </div>
-                        ))}
-                        {scanResult.incompleteCycle.length > 0 && (
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs font-medium text-muted-foreground">
-                                Cycle en cours ({scanResult.incompleteCycle.length}/{CYCLE_SIZE})
-                              </span>
-                              <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">En cours</Badge>
-                            </div>
-                            <CycleGrid cycle={scanResult.incompleteCycle} cycleSize={CYCLE_SIZE} />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Summary */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Info className="h-4 w-4" />
-                    Résumé
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold font-mono">{records.length}</div>
-                      <div className="text-xs text-muted-foreground">Total crates</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold font-mono">
-                        {scanResult?.totalCycles ?? 0}
-                      </div>
-                      <div className="text-xs text-muted-foreground">Cycles complets</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold font-mono text-amber-600">
-                        {records.filter((r) => r === 'Legendary').length}
-                      </div>
-                      <div className="text-xs text-muted-foreground">Légendaires</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold font-mono">
-                        {scanResult?.currentCyclePosition ?? '-'}
-                      </div>
-                      <div className="text-xs text-muted-foreground">Position cycle</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
           </div>
         </main>
 
         {/* ─── Footer ──────────────────────────────────── */}
-        <footer className="border-t bg-white/80 backdrop-blur-sm mt-auto">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 text-center text-xs text-muted-foreground">
+        <footer className="border-t bg-white/80 backdrop-blur-sm shrink-0">
+          <div className="max-w-[1600px] mx-auto px-4 py-1.5 text-center text-[10px] text-muted-foreground">
             LG Crate Tracker {APP_VERSION} — Basé sur les recherches de Daa, OxKing, pho et la communauté.
-            <br className="sm:hidden" />{' '}
-            <span>Données stockées localement dans ton navigateur.</span>
           </div>
         </footer>
       </div>
