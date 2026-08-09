@@ -160,7 +160,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.5.0';
+const APP_VERSION = 'v1.6.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -171,6 +171,9 @@ export default function CrateTracker() {
 
   const [importText, setImportText] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // ─── Computed scan & stats ─────────────────────────────
@@ -212,6 +215,7 @@ export default function CrateTracker() {
     cachedRaw = '';
     notifyListeners();
     toast.success('Historique effacé');
+    setClearOpen(false);
   }, []);
 
   const importRecords = useCallback(() => {
@@ -225,6 +229,7 @@ export default function CrateTracker() {
     cachedRaw = '';
     notifyListeners();
     setImportText('');
+    setImportOpen(false);
     toast.success(`${parsed.length} enregistrements importés`);
   }, [importText]);
 
@@ -243,6 +248,7 @@ export default function CrateTracker() {
       cachedRaw = '';
       notifyListeners();
       toast.success(`${parsed.length} enregistrements importés depuis ${file.name}`);
+      setImportOpen(false);
     };
     reader.readAsText(file);
     e.target.value = ''; // reset so same file can be re-imported
@@ -252,6 +258,7 @@ export default function CrateTracker() {
     const text = records.map((r) => RARITY_SHORT[r]).join(', ');
     navigator.clipboard.writeText(text).then(() => {
       toast.success('Copié dans le presse-papier !');
+      setExportOpen(false);
     }).catch(() => {
       toast.error('Impossible de copier');
     });
@@ -267,6 +274,7 @@ export default function CrateTracker() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Fichier téléchargé !');
+    setExportOpen(false);
   }, [records]);
 
   // ─── Keyboard shortcuts ───────────────────────────────
@@ -313,7 +321,7 @@ export default function CrateTracker() {
               </h1>
             </div>
             <div className="flex items-center gap-1">
-              <Dialog>
+              <Dialog open={importOpen} onOpenChange={setImportOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
                     <Upload className="h-3 w-3" />
@@ -364,7 +372,7 @@ export default function CrateTracker() {
                 </DialogContent>
               </Dialog>
 
-              <Dialog>
+              <Dialog open={exportOpen} onOpenChange={setExportOpen}>
                 <DialogTrigger asChild>
                   <Button
                     variant="outline" size="sm"
@@ -494,7 +502,7 @@ export default function CrateTracker() {
                         </TooltipTrigger>
                         <TooltipContent>Suppr / Retour arrière</TooltipContent>
                       </Tooltip>
-                      <Dialog>
+                      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
                         <DialogTrigger asChild>
                           <Button
                             variant="ghost" size="sm"
@@ -761,7 +769,7 @@ export default function CrateTracker() {
                       <p className="text-xs">Clique sur les boutons à gauche</p>
                     </div>
                   ) : (
-                    <div className="columns-2 lg:columns-3 xl:columns-4 gap-1">
+                    <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-0.5">
                       {records.map((r, i) => {
                         const config = RARITY_CONFIG.find((c) => c.rarity === r)!;
                         const isCycleStart =
@@ -769,7 +777,7 @@ export default function CrateTracker() {
                         return (
                           <div
                             key={i}
-                            className={`flex items-center gap-1 px-1.5 py-px rounded text-[11px] break-inside-avoid ${config.color}`}
+                            className={`flex items-center gap-1 px-1 py-px rounded text-[11px] ${config.color}`}
                           >
                             <span className="text-muted-foreground font-mono w-5 text-right shrink-0">
                               {i + 1}
