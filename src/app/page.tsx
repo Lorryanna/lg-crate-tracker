@@ -160,7 +160,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.6.0';
+const APP_VERSION = 'v1.6.1';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -482,7 +482,7 @@ export default function CrateTracker() {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            Touche <kbd className="px-1 py-0.5 bg-muted rounded text-xs font-mono">{c.shortLabel}</kbd>
+                            Touche <kbd className="px-1 py-0.5 bg-stone-700 text-stone-50 rounded text-xs font-mono">{c.shortLabel}</kbd>
                           </TooltipContent>
                         </Tooltip>
                       ))}
