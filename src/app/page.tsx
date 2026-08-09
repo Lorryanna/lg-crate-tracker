@@ -162,7 +162,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.1.1';
+const APP_VERSION = 'v1.2.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -229,13 +229,25 @@ export default function CrateTracker() {
     toast.success(`${parsed.length} enregistrements importés`);
   }, [importText]);
 
-  const exportRecords = useCallback(() => {
+  const exportClipboard = useCallback(() => {
     const text = records.map((r) => RARITY_SHORT[r]).join(', ');
     navigator.clipboard.writeText(text).then(() => {
       toast.success('Copié dans le presse-papier !');
     }).catch(() => {
       toast.error('Impossible de copier');
     });
+  }, [records]);
+
+  const exportFile = useCallback(() => {
+    const text = records.map((r) => RARITY_SHORT[r]).join(', ');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lg-crates-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Fichier téléchargé !');
   }, [records]);
 
   // ─── Keyboard shortcuts ───────────────────────────────
@@ -314,20 +326,34 @@ export default function CrateTracker() {
                 </DialogContent>
               </Dialog>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <Dialog>
+                <DialogTrigger asChild>
                   <Button
                     variant="outline" size="sm"
-                    onClick={exportRecords}
                     disabled={records.length === 0}
                     className="gap-1.5"
                   >
                     <Download className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Exporter</span>
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>Copier l&apos;historique (R,B,E,L...)</TooltipContent>
-              </Tooltip>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Exporter l&apos;historique</DialogTitle>
+                    <DialogDescription>Choisis le mode d&apos;export.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-2">
+                    <Button onClick={exportClipboard} className="w-full justify-start gap-2" variant="outline">
+                      <Save className="h-4 w-4" />
+                      Copier dans le presse-papier
+                    </Button>
+                    <Button onClick={exportFile} className="w-full justify-start gap-2" variant="outline">
+                      <Download className="h-4 w-4" />
+                      Télécharger un fichier .txt
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               <Dialog>
                 <DialogTrigger asChild>
