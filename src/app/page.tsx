@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
@@ -161,7 +160,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.3.0';
+const APP_VERSION = 'v1.4.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -414,7 +413,7 @@ export default function CrateTracker() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full">
 
             {/* ─── Left Column: Controls + Stats ───────── */}
-            <div className="lg:col-span-4 xl:col-span-3 overflow-y-auto">
+            <div className="lg:col-span-5 xl:col-span-4 overflow-y-auto">
               <div className="space-y-3">
 
                 {/* Add Buttons — compact */}
@@ -702,66 +701,60 @@ export default function CrateTracker() {
             </div>
 
             {/* ─── Right Column: History (full height) ──── */}
-            <div className="lg:col-span-8 xl:col-span-9 flex flex-col min-h-0">
+            <div className="lg:col-span-7 xl:col-span-8 flex flex-col min-h-0">
               <Card className="flex-1 flex flex-col min-h-0">
-                <CardHeader className="pb-2 pt-3 px-3 shrink-0">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-xs font-medium flex items-center gap-1.5">
-                      <List className="h-3.5 w-3.5" />
-                      Historique
-                    </CardTitle>
-                    <Badge variant="outline" className="text-[10px] font-mono">
-                      #{records.length}
-                    </Badge>
+                <div className="flex items-center justify-between px-3 pt-2 pb-1 shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <List className="h-3.5 w-3.5" />
+                    <span className="text-xs font-medium">Historique</span>
                   </div>
-                </CardHeader>
-                <CardContent className="p-0 flex-1 min-h-0">
-                  <ScrollArea className="h-full">
-                    <div className="px-3 pb-3 space-y-0.5">
-                      {records.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                          <Swords className="h-10 w-10 mb-2 opacity-30" />
-                          <p className="text-sm">Aucun enregistrement</p>
-                          <p className="text-xs">Clique sur les boutons à gauche</p>
-                        </div>
-                      ) : (
-                        <>
-                          {records.map((r, i) => {
-                            const config = RARITY_CONFIG.find((c) => c.rarity === r)!;
-                            const isCycleStart =
-                              scanResult && scanResult.cycleStart >= 0 && i === scanResult.cycleStart;
-                            return (
-                              <div
-                                key={i}
-                                className={`flex items-center gap-2 px-2 py-0.5 rounded text-xs ${config.color}`}
-                              >
-                                <span className="text-muted-foreground font-mono w-7 text-right shrink-0">
-                                  {i + 1}
-                                </span>
-                                <span
-                                  className="w-2 h-2 rounded-full shrink-0"
-                                  style={{
-                                    backgroundColor:
-                                      r === 'Rare' ? '#38bdf8'
-                                      : r === 'Big Rare' ? '#06b6d4'
-                                      : r === 'Epic' ? '#a855f7'
-                                      : '#f59e0b',
-                                  }}
-                                />
-                                <span className={config.textColor + ' font-medium'}>{config.label}</span>
-                                {isCycleStart && (
-                                  <Badge variant="outline" className="ml-auto text-[9px] border-amber-400 text-amber-600">
-                                    Cycle ↓
-                                  </Badge>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </>
-                      )}
+                  <Badge variant="outline" className="text-[10px] font-mono">
+                    #{records.length}
+                  </Badge>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+                  {records.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                      <Swords className="h-10 w-10 mb-2 opacity-30" />
+                      <p className="text-sm">Aucun enregistrement</p>
+                      <p className="text-xs">Clique sur les boutons à gauche</p>
                     </div>
-                  </ScrollArea>
-                </CardContent>
+                  ) : (
+                    <div className="columns-2 lg:columns-3 xl:columns-4 gap-1">
+                      {records.map((r, i) => {
+                        const config = RARITY_CONFIG.find((c) => c.rarity === r)!;
+                        const isCycleStart =
+                          scanResult && scanResult.cycleStart >= 0 && i === scanResult.cycleStart;
+                        return (
+                          <div
+                            key={i}
+                            className={`flex items-center gap-1 px-1.5 py-px rounded text-[11px] break-inside-avoid ${config.color}`}
+                          >
+                            <span className="text-muted-foreground font-mono w-5 text-right shrink-0">
+                              {i + 1}
+                            </span>
+                            <span
+                              className="w-1.5 h-1.5 rounded-full shrink-0"
+                              style={{
+                                backgroundColor:
+                                  r === 'Rare' ? '#38bdf8'
+                                  : r === 'Big Rare' ? '#06b6d4'
+                                  : r === 'Epic' ? '#a855f7'
+                                  : '#f59e0b',
+                              }}
+                            />
+                            <span className={config.textColor + ' font-medium truncate'}>{config.label}</span>
+                            {isCycleStart && (
+                              <span className="text-[8px] border border-amber-400 text-amber-600 rounded px-0.5 ml-auto">
+                                C↓
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </Card>
             </div>
           </div>
