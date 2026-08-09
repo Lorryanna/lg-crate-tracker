@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -160,7 +160,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.4.0';
+const APP_VERSION = 'v1.5.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -171,6 +171,7 @@ export default function CrateTracker() {
 
   const [importText, setImportText] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // ─── Computed scan & stats ─────────────────────────────
 
@@ -226,6 +227,26 @@ export default function CrateTracker() {
     setImportText('');
     toast.success(`${parsed.length} enregistrements importés`);
   }, [importText]);
+
+  const handleFileImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      const parsed = parseImportText(text);
+      if (parsed.length === 0) {
+        toast.error('Aucune rarité reconnue dans le fichier.');
+        return;
+      }
+      saveRecords(parsed);
+      cachedRaw = '';
+      notifyListeners();
+      toast.success(`${parsed.length} enregistrements importés depuis ${file.name}`);
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // reset so same file can be re-imported
+  }, []);
 
   const exportClipboard = useCallback(() => {
     const text = records.map((r) => RARITY_SHORT[r]).join(', ');
@@ -307,18 +328,38 @@ export default function CrateTracker() {
                       (séparés par des virgules, espaces ou retours à la ligne).
                     </DialogDescription>
                   </DialogHeader>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".txt,.csv,.text"
+                    onChange={handleFileImport}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    className="w-full justify-center gap-2 h-9 border-dashed"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4" />
+                    Choisir un fichier (.txt / .csv)
+                  </Button>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Separator className="flex-1" />
+                    <span>ou coller</span>
+                    <Separator className="flex-1" />
+                  </div>
                   <Textarea
                     value={importText}
                     onChange={(e) => setImportText(e.target.value)}
                     placeholder={"Ex: R,R,R,B,R,E,R,R,R,L,R,B,R...\nou: RRBREERRLLBBR...\nou: Rare, Rare, Big Rare, Epic..."}
-                    rows={6}
+                    rows={4}
                     className="font-mono text-sm"
                   />
                   <DialogFooter>
                     <DialogClose asChild>
                       <Button variant="outline">Annuler</Button>
                     </DialogClose>
-                    <Button onClick={importRecords}>Importer</Button>
+                    <Button onClick={importRecords} disabled={!importText.trim()}>Importer</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
