@@ -155,7 +155,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.7.0';
+const APP_VERSION = 'v1.8.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -308,6 +308,7 @@ export default function CrateTracker() {
 
   const legendDropped = cycleStats ? cycleStats['Legendary'].dropped : 0;
   const legendRemaining = cycleStats ? cycleStats['Legendary'].remaining : 1;
+  const remainingInCycle = scanResult ? CYCLE_SIZE - scanResult.currentCyclePosition : 0;
 
   // ─── Render ──────────────────────────────────────────
 
@@ -518,69 +519,66 @@ export default function CrateTracker() {
               {/* ── 1. Buttons row ────────────────────── */}
               <Card className="shrink-0 py-0 gap-0">
                 <CardContent className="p-2">
-                  <div className="flex items-center gap-2">
-                    <div className="grid grid-cols-4 gap-1.5 flex-1">
-                      {RARITY_CONFIG.map((c) => (
-                        <Tooltip key={c.rarity}>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className={`h-9 gap-1.5 border-2 text-xs font-semibold transition-all active:scale-95 ${c.color}`}
-                              onClick={() => addRecord(c.rarity)}
-                            >
-                              {c.icon}
-                              <span className={c.textColor}>{c.label}</span>
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            Touche <kbd className="px-1 py-0.5 bg-stone-700 text-stone-50 rounded text-xs font-mono">{c.shortLabel}</kbd>
-                          </TooltipContent>
-                        </Tooltip>
-                      ))}
-                    </div>
-                    <div className="w-px h-8 bg-border shrink-0" />
-                    <div className="flex gap-1.5 shrink-0">
-                      <Tooltip>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {RARITY_CONFIG.map((c) => (
+                      <Tooltip key={c.rarity}>
                         <TooltipTrigger asChild>
                           <Button
-                            variant="ghost" size="sm"
-                            onClick={deleteLast}
-                            disabled={records.length === 0}
-                            className="gap-1 text-destructive hover:text-destructive h-7 text-xs"
+                            variant="outline"
+                            className={`h-9 gap-1.5 border-2 text-xs font-semibold transition-all active:scale-95 ${c.color}`}
+                            onClick={() => addRecord(c.rarity)}
                           >
-                            <Trash2 className="h-3 w-3" />
-                            <span className="hidden xl:inline">Annuler</span>
+                            {c.icon}
+                            <span className={c.textColor}>{c.label}</span>
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Suppr / Retour arrière</TooltipContent>
+                        <TooltipContent>
+                          Touche <kbd className="px-1 py-0.5 bg-stone-700 text-stone-50 rounded text-xs font-mono">{c.shortLabel}</kbd>
+                        </TooltipContent>
                       </Tooltip>
-                      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="ghost" size="sm"
-                            disabled={records.length === 0}
-                            className="gap-1 text-destructive hover:text-destructive h-7 text-xs"
-                          >
-                            <RotateCcw className="h-3 w-3" />
-                            <span className="hidden xl:inline">Tout effacer</span>
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Effacer tout ?</DialogTitle>
-                            <DialogDescription>
-                              Cette action est irréversible. Tous vos enregistrements seront supprimés.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <DialogFooter>
-                            <DialogClose asChild>
-                              <Button variant="outline">Annuler</Button>
-                            </DialogClose>
-                            <Button variant="destructive" onClick={clearAll}>Effacer</Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end gap-1.5 mt-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost" size="sm"
+                          onClick={deleteLast}
+                          disabled={records.length === 0}
+                          className="gap-1 text-destructive hover:text-destructive h-7 text-xs"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span className="hidden xl:inline">Annuler</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Suppr / Retour arrière</TooltipContent>
+                    </Tooltip>
+                    <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost" size="sm"
+                          disabled={records.length === 0}
+                          className="gap-1 text-destructive hover:text-destructive h-7 text-xs"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          <span className="hidden xl:inline">Tout effacer</span>
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Effacer tout ?</DialogTitle>
+                          <DialogDescription>
+                            Cette action est irréversible. Tous vos enregistrements seront supprimés.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                          <DialogClose asChild>
+                            <Button variant="outline">Annuler</Button>
+                          </DialogClose>
+                          <Button variant="destructive" onClick={clearAll}>Effacer</Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </CardContent>
               </Card>
@@ -685,6 +683,13 @@ export default function CrateTracker() {
                             }`}>
                               {isComplete ? '✓ Complété' : `${stat.remaining} restant${stat.remaining > 1 ? 's' : ''}`}
                             </div>
+                            {!isComplete && (
+                              <div className="text-[10px] text-muted-foreground font-mono">
+                                → {remainingInCycle > 0
+                                  ? ((stat.remaining / remainingInCycle) * 100).toFixed(1)
+                                  : '0'}%
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -715,7 +720,7 @@ export default function CrateTracker() {
               )}
 
               {/* ── 5. Summary + Visualization side by side ── */}
-              <div className="flex gap-2 shrink-0">
+              <div className="flex gap-2 mt-auto shrink-0">
 
                 {/* Summary — compact 2×2 */}
                 <Card className="shrink-0 py-0 gap-0">
