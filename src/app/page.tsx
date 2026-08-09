@@ -155,7 +155,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.8.0';
+const APP_VERSION = 'v1.8.1';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -296,6 +296,18 @@ export default function CrateTracker() {
       el.scrollTop = el.scrollHeight;
     }
   }, [records.length]);
+
+  // ─── Cycle start indices (for C↓ marker in history) ──
+
+  const cycleStartIndices = useMemo(() => {
+    if (!scanResult || scanResult.cycleStart < 0) return new Set<number>();
+    const indices = new Set<number>();
+    for (let c = 0; c <= scanResult.totalCycles; c++) {
+      const idx = scanResult.cycleStart + c * CYCLE_SIZE;
+      if (idx < records.length) indices.add(idx);
+    }
+    return indices;
+  }, [scanResult, records.length]);
 
   // ─── Derived values ────────────────────────────────────
 
@@ -478,8 +490,7 @@ export default function CrateTracker() {
                     <div className="grid grid-cols-4 gap-0.5">
                       {records.map((r, i) => {
                         const config = RARITY_CONFIG.find((c) => c.rarity === r)!;
-                        const isCycleStart =
-                          scanResult && scanResult.cycleStart >= 0 && i === scanResult.cycleStart;
+                        const isCycleStart = cycleStartIndices.has(i);
                         return (
                           <div
                             key={i}
@@ -514,11 +525,11 @@ export default function CrateTracker() {
             </div>
 
             {/* ═══ RIGHT COLUMN: Controls + Analysis ════ */}
-            <div className="lg:col-span-7 flex flex-col gap-2 min-h-0 overflow-y-auto">
+            <div className="lg:col-span-7 flex flex-col gap-2.5 min-h-0 overflow-y-auto">
 
               {/* ── 1. Buttons row ────────────────────── */}
               <Card className="shrink-0 py-0 gap-0">
-                <CardContent className="p-2">
+                <CardContent className="px-3 py-2.5">
                   <div className="grid grid-cols-4 gap-1.5">
                     {RARITY_CONFIG.map((c) => (
                       <Tooltip key={c.rarity}>
@@ -628,7 +639,7 @@ export default function CrateTracker() {
               {/* ── 4. Cycle en cours (aligned with buttons) ── */}
               {cycleStats && scanResult?.valid && (
                 <Card className="shrink-0 py-0 gap-0">
-                  <CardHeader className="pb-1.5 pt-2 px-2.5">
+                  <CardHeader className="pb-1.5 pt-2.5 px-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-xs font-medium flex items-center gap-1.5">
                         <Grid3X3 className="h-3.5 w-3.5" />
@@ -639,7 +650,7 @@ export default function CrateTracker() {
                       </Badge>
                     </div>
                   </CardHeader>
-                  <CardContent className="px-2.5 pb-2.5">
+                  <CardContent className="px-3 pb-3">
                     <div className="w-full h-1 bg-muted rounded-full mb-2 overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-300"
@@ -720,11 +731,11 @@ export default function CrateTracker() {
               )}
 
               {/* ── 5. Summary + Visualization side by side ── */}
-              <div className="flex gap-2 mt-auto shrink-0">
+              <div className="flex gap-2 shrink-0">
 
                 {/* Summary — compact 2×2 */}
                 <Card className="shrink-0 py-0 gap-0">
-                  <CardContent className="py-1.5 px-2.5">
+                  <CardContent className="py-2 px-3">
                     <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-center">
                       <div>
                         <div className="text-sm font-bold font-mono">{records.length}</div>
@@ -749,7 +760,7 @@ export default function CrateTracker() {
                 {/* Cycle Visualization — takes remaining width */}
                 {scanResult?.valid && (
                   <Card className="flex-1 flex flex-col min-w-0 py-0 gap-0">
-                    <CardHeader className="pb-1 pt-1.5 px-2.5">
+                    <CardHeader className="pb-1.5 pt-2 px-3">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-xs font-medium flex items-center gap-1.5">
                           <History className="h-3.5 w-3.5" />
@@ -767,7 +778,7 @@ export default function CrateTracker() {
                         )}
                       </div>
                     </CardHeader>
-                    <CardContent className="px-2.5 pb-2 flex-1 min-h-0 overflow-y-auto">
+                    <CardContent className="px-3 pb-2.5 flex-1 min-h-0 overflow-y-auto">
                       {!showHistory ? (
                         <CycleGrid
                           cycle={scanResult.incompleteCycle.length > 0
