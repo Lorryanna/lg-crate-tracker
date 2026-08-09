@@ -453,7 +453,7 @@ export default function CrateTracker() {
 
             {/* ═══ LEFT COLUMN: History (full height) ════ */}
             <div className="lg:col-span-5 flex flex-col min-h-0">
-              <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <Card className="flex-1 flex flex-col min-h-0 overflow-hidden py-0 gap-0">
                 <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5 shrink-0 border-b">
                   <div className="flex items-center gap-1.5">
                     <List className="h-3.5 w-3.5" />
@@ -516,7 +516,7 @@ export default function CrateTracker() {
             <div className="lg:col-span-7 flex flex-col gap-2 min-h-0 overflow-y-auto">
 
               {/* ── 1. Buttons row ────────────────────── */}
-              <Card className="shrink-0">
+              <Card className="shrink-0 py-0 gap-0">
                 <CardContent className="p-2">
                   <div className="flex items-center gap-2">
                     <div className="grid grid-cols-4 gap-1.5 flex-1">
@@ -587,7 +587,7 @@ export default function CrateTracker() {
 
               {/* ── 2. Progress banner (before scan threshold) ── */}
               {!scanResult && records.length > 0 && (
-                <Card className="border-amber-200 bg-amber-50 shrink-0">
+                <Card className="border-amber-200 bg-amber-50 shrink-0 py-0 gap-0">
                   <CardContent className="py-1.5 px-2.5 flex items-center gap-2">
                     <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                     <div className="min-w-0 flex-1">
@@ -606,7 +606,7 @@ export default function CrateTracker() {
 
               {/* ── 3. Scan result banner ─────────────── */}
               {scanResult && (
-                <Card className={scanResult.valid ? 'border-emerald-200 bg-emerald-50 shrink-0' : 'border-red-200 bg-red-50 shrink-0'}>
+                <Card className={scanResult.valid ? 'border-emerald-200 bg-emerald-50 shrink-0 py-0 gap-0' : 'border-red-200 bg-red-50 shrink-0 py-0 gap-0'}>
                   <CardContent className="py-1.5 px-2.5 flex items-start gap-2">
                     {scanResult.valid ? (
                       <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
@@ -629,7 +629,7 @@ export default function CrateTracker() {
 
               {/* ── 4. Cycle en cours (aligned with buttons) ── */}
               {cycleStats && scanResult?.valid && (
-                <Card className="shrink-0">
+                <Card className="shrink-0 py-0 gap-0">
                   <CardHeader className="pb-1.5 pt-2 px-2.5">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-xs font-medium flex items-center gap-1.5">
@@ -718,7 +718,7 @@ export default function CrateTracker() {
               <div className="flex gap-2 shrink-0">
 
                 {/* Summary — compact 2×2 */}
-                <Card className="shrink-0">
+                <Card className="shrink-0 py-0 gap-0">
                   <CardContent className="py-1.5 px-2.5">
                     <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-center">
                       <div>
@@ -743,7 +743,7 @@ export default function CrateTracker() {
 
                 {/* Cycle Visualization — takes remaining width */}
                 {scanResult?.valid && (
-                  <Card className="flex-1 flex flex-col min-w-0">
+                  <Card className="flex-1 flex flex-col min-w-0 py-0 gap-0">
                     <CardHeader className="pb-1 pt-1.5 px-2.5">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-xs font-medium flex items-center gap-1.5">
