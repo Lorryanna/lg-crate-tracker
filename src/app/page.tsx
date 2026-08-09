@@ -160,7 +160,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.6.1';
+const APP_VERSION = 'v1.6.2';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -175,6 +175,7 @@ export default function CrateTracker() {
   const [exportOpen, setExportOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const historyEndRef = useRef<HTMLDivElement>(null);
   
   // ─── Computed scan & stats ─────────────────────────────
 
@@ -292,6 +293,12 @@ export default function CrateTracker() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [addRecord, deleteLast]);
+
+  // ─── Auto-scroll history to bottom ─────────────────
+
+  useEffect(() => {
+    historyEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [records.length]);
 
   // ─── Derived values ────────────────────────────────────
 
@@ -769,7 +776,8 @@ export default function CrateTracker() {
                       <p className="text-xs">Clique sur les boutons à gauche</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-0.5">
+                    <>
+                      <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-0.5">
                       {records.map((r, i) => {
                         const config = RARITY_CONFIG.find((c) => c.rarity === r)!;
                         const isCycleStart =
@@ -802,6 +810,8 @@ export default function CrateTracker() {
                         );
                       })}
                     </div>
+                    <div ref={historyEndRef} />
+                  </>
                   )}
                 </div>
               </Card>
