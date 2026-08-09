@@ -63,9 +63,7 @@ function loadRecords(): Rarity[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((r: string) =>
-      ['Rare', 'Big Rare', 'Epic', 'Legendary'].includes(r)
-    ) as Rarity[];
+    return parsed;
   } catch {
     return [];
   }
@@ -76,7 +74,7 @@ function saveRecords(records: Rarity[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 }
 
-// ─── Rarity Button Config ────────────────────────────────
+// ─── Rarity config ────────────────────────────────────────
 
 const RARITY_CONFIG: {
   rarity: Rarity;
@@ -140,10 +138,7 @@ function getRecordsSnapshot(): Rarity[] {
     cachedRaw = raw;
     try {
       const parsed = JSON.parse(raw);
-      const filtered = Array.isArray(parsed)
-        ? parsed.filter((r: string) => ['Rare', 'Big Rare', 'Epic', 'Legendary'].includes(r)) as Rarity[]
-        : null;
-      cachedParsed = (filtered && filtered.length > 0) ? filtered : EMPTY_RECORDS;
+      cachedParsed = Array.isArray(parsed) ? parsed : EMPTY_RECORDS;
     } catch {
       cachedParsed = EMPTY_RECORDS;
     }
@@ -160,7 +155,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.6.2';
+const APP_VERSION = 'v1.7.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -175,8 +170,8 @@ export default function CrateTracker() {
   const [exportOpen, setExportOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const historyEndRef = useRef<HTMLDivElement>(null);
-  
+  const historyContainerRef = useRef<HTMLDivElement>(null);
+
   // ─── Computed scan & stats ─────────────────────────────
 
   const scanResult: ScanResult | null = useMemo(() => {
@@ -194,65 +189,64 @@ export default function CrateTracker() {
   const addRecord = useCallback((rarity: Rarity) => {
     const current = getRecordsSnapshot();
     saveRecords([...current, rarity]);
-    cachedRaw = ''; // invalidate cache so next getSnapshot re-reads
+    cachedRaw = '';
     notifyListeners();
   }, []);
 
   const deleteLast = useCallback(() => {
     const current = getRecordsSnapshot();
     if (current.length === 0) {
-      toast.error('Aucun enregistrement à supprimer');
+      toast.error('Aucun enregistrement à annuler');
       return;
     }
-    const removed = current[current.length - 1];
     saveRecords(current.slice(0, -1));
     cachedRaw = '';
     notifyListeners();
-    toast.success(`Supprimé: ${removed}`);
   }, []);
 
   const clearAll = useCallback(() => {
     saveRecords([]);
     cachedRaw = '';
     notifyListeners();
-    toast.success('Historique effacé');
     setClearOpen(false);
+    toast.success('Tous les enregistrements effacés');
   }, []);
 
-  const importRecords = useCallback(() => {
-    if (!importText.trim()) return;
+  const handleImport = useCallback(() => {
     const parsed = parseImportText(importText);
     if (parsed.length === 0) {
-      toast.error('Aucune rarité reconnue. Utilisez R, B, E, L ou les noms complets.');
+      toast.error('Aucun enregistrement valide trouvé');
       return;
     }
-    saveRecords(parsed);
+    const current = getRecordsSnapshot();
+    saveRecords([...current, ...parsed]);
     cachedRaw = '';
     notifyListeners();
-    setImportText('');
-    setImportOpen(false);
     toast.success(`${parsed.length} enregistrements importés`);
+    setImportOpen(false);
+    setImportText('');
   }, [importText]);
 
   const handleFileImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
-      const text = reader.result as string;
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
       const parsed = parseImportText(text);
       if (parsed.length === 0) {
-        toast.error('Aucune rarité reconnue dans le fichier.');
+        toast.error('Aucun enregistrement valide dans le fichier');
         return;
       }
-      saveRecords(parsed);
+      const current = getRecordsSnapshot();
+      saveRecords([...current, ...parsed]);
       cachedRaw = '';
       notifyListeners();
       toast.success(`${parsed.length} enregistrements importés depuis ${file.name}`);
       setImportOpen(false);
     };
     reader.readAsText(file);
-    e.target.value = ''; // reset so same file can be re-imported
+    e.target.value = '';
   }, []);
 
   const exportClipboard = useCallback(() => {
@@ -294,10 +288,13 @@ export default function CrateTracker() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [addRecord, deleteLast]);
 
-  // ─── Auto-scroll history to bottom ─────────────────
+  // ─── Auto-scroll history container to bottom ─────────
 
   useEffect(() => {
-    historyEndRef.current?.scrollIntoView({ block: 'end' });
+    const el = historyContainerRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [records.length]);
 
   // ─── Derived values ────────────────────────────────────
@@ -335,62 +332,48 @@ export default function CrateTracker() {
                     <span className="hidden sm:inline">Importer</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Importer un historique</DialogTitle>
-                    <DialogDescription>
-                      Collez vos enregistrements en utilisant les lettres R, B, E, L
-                      (séparés par des virgules, espaces ou retours à la ligne).
-                    </DialogDescription>
+                    <DialogTitle>Importer des données</DialogTitle>
+                    <DialogDescription>Colle tes données ou charge un fichier.</DialogDescription>
                   </DialogHeader>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept=".txt,.csv,.text"
-                    onChange={handleFileImport}
-                    className="hidden"
-                  />
-                  <Button
-                    variant="outline"
-                    className="w-full justify-center gap-2 h-9 border-dashed"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Upload className="h-4 w-4" />
-                    Choisir un fichier (.txt / .csv)
-                  </Button>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Separator className="flex-1" />
-                    <span>ou coller</span>
-                    <Separator className="flex-1" />
+                  <div className="space-y-3">
+                    <Textarea
+                      value={importText}
+                      onChange={(e) => setImportText(e.target.value)}
+                      placeholder="R, R, B, E, R, L, ..."
+                      rows={4}
+                      className="text-xs font-mono"
+                    />
+                    <Button onClick={handleImport} disabled={!importText.trim()} className="w-full gap-2">
+                      <Upload className="h-4 w-4" />
+                      Importer
+                    </Button>
+                    <Separator />
+                    <div className="text-center text-xs text-muted-foreground">ou</div>
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full gap-2">
+                      <Upload className="h-4 w-4" />
+                      Charger un fichier .txt
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,.csv,.text"
+                      onChange={handleFileImport}
+                      className="hidden"
+                    />
                   </div>
-                  <Textarea
-                    value={importText}
-                    onChange={(e) => setImportText(e.target.value)}
-                    placeholder={"Ex: R,R,R,B,R,E,R,R,R,L,R,B,R...\nou: RRBREERRLLBBR...\nou: Rare, Rare, Big Rare, Epic..."}
-                    rows={4}
-                    className="font-mono text-sm"
-                  />
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button variant="outline">Annuler</Button>
-                    </DialogClose>
-                    <Button onClick={importRecords} disabled={!importText.trim()}>Importer</Button>
-                  </DialogFooter>
                 </DialogContent>
               </Dialog>
 
               <Dialog open={exportOpen} onOpenChange={setExportOpen}>
                 <DialogTrigger asChild>
-                  <Button
-                    variant="outline" size="sm"
-                    disabled={records.length === 0}
-                    className="h-7 gap-1.5 text-xs"
-                  >
+                  <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
                     <Download className="h-3 w-3" />
                     <span className="hidden sm:inline">Exporter</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-sm">
+                <DialogContent className="max-w-sm">
                   <DialogHeader>
                     <DialogTitle>Exporter l&apos;historique</DialogTitle>
                     <DialogDescription>Choisis le mode d&apos;export.</DialogDescription>
@@ -465,17 +448,78 @@ export default function CrateTracker() {
         </header>
 
         {/* ─── Main Content (fills remaining height) ──── */}
-        <main className="flex-1 overflow-hidden max-w-[1600px] mx-auto w-full px-4 py-3">
+        <main className="flex-1 min-h-0 overflow-hidden max-w-[1600px] mx-auto w-full px-4 py-3">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full">
 
-            {/* ─── Left Column: Controls + Stats ───────── */}
-            <div className="lg:col-span-5 xl:col-span-4 overflow-y-auto">
-              <div className="space-y-3">
+            {/* ═══ LEFT COLUMN: History (full height) ════ */}
+            <div className="lg:col-span-5 flex flex-col min-h-0">
+              <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5 shrink-0 border-b">
+                  <div className="flex items-center gap-1.5">
+                    <List className="h-3.5 w-3.5" />
+                    <span className="text-xs font-medium">Historique</span>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] font-mono">
+                    #{records.length}
+                  </Badge>
+                </div>
+                <div
+                  ref={historyContainerRef}
+                  className="flex-1 min-h-0 overflow-y-auto px-2 py-2"
+                >
+                  {records.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                      <Swords className="h-10 w-10 mb-2 opacity-30" />
+                      <p className="text-sm">Aucun enregistrement</p>
+                      <p className="text-xs">Utilise les boutons ou les touches R/B/E/L</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-0.5">
+                      {records.map((r, i) => {
+                        const config = RARITY_CONFIG.find((c) => c.rarity === r)!;
+                        const isCycleStart =
+                          scanResult && scanResult.cycleStart >= 0 && i === scanResult.cycleStart;
+                        return (
+                          <div
+                            key={i}
+                            className={`flex items-center gap-1 px-1 py-px rounded text-[11px] ${config.color}`}
+                          >
+                            <span className="text-muted-foreground font-mono w-5 text-right shrink-0">
+                              {i + 1}
+                            </span>
+                            <span
+                              className="w-1.5 h-1.5 rounded-full shrink-0"
+                              style={{
+                                backgroundColor:
+                                  r === 'Rare' ? '#38bdf8'
+                                  : r === 'Big Rare' ? '#06b6d4'
+                                  : r === 'Epic' ? '#a855f7'
+                                  : '#f59e0b',
+                              }}
+                            />
+                            <span className={config.textColor + ' font-medium truncate'}>{config.label}</span>
+                            {isCycleStart && (
+                              <span className="text-[8px] border border-amber-400 text-amber-600 rounded px-0.5 ml-auto">
+                                C↓
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </div>
 
-                {/* Add Buttons — compact */}
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="grid grid-cols-2 gap-2">
+            {/* ═══ RIGHT COLUMN: Controls + Analysis ════ */}
+            <div className="lg:col-span-7 flex flex-col gap-3 min-h-0 overflow-y-auto">
+
+              {/* ── 1. Buttons row ────────────────────── */}
+              <Card className="shrink-0">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="grid grid-cols-4 gap-2 flex-1">
                       {RARITY_CONFIG.map((c) => (
                         <Tooltip key={c.rarity}>
                           <TooltipTrigger asChild>
@@ -494,7 +538,8 @@ export default function CrateTracker() {
                         </Tooltip>
                       ))}
                     </div>
-                    <div className="flex gap-2 mt-2">
+                    <div className="w-px h-8 bg-border shrink-0" />
+                    <div className="flex gap-1.5 shrink-0">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -504,7 +549,7 @@ export default function CrateTracker() {
                             className="gap-1 text-destructive hover:text-destructive h-7 text-xs"
                           >
                             <Trash2 className="h-3 w-3" />
-                            Annuler dernier
+                            <span className="hidden xl:inline">Annuler</span>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Suppr / Retour arrière</TooltipContent>
@@ -517,7 +562,7 @@ export default function CrateTracker() {
                             className="gap-1 text-destructive hover:text-destructive h-7 text-xs"
                           >
                             <RotateCcw className="h-3 w-3" />
-                            Tout effacer
+                            <span className="hidden xl:inline">Tout effacer</span>
                           </Button>
                         </DialogTrigger>
                         <DialogContent>
@@ -536,143 +581,171 @@ export default function CrateTracker() {
                         </DialogContent>
                       </Dialog>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ── 2. Progress banner (before scan threshold) ── */}
+              {!scanResult && records.length > 0 && (
+                <Card className="border-amber-200 bg-amber-50 shrink-0">
+                  <CardContent className="py-2.5 px-3 flex items-center gap-2.5">
+                    <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-amber-800">
+                        <strong>{CYCLE_SIZE * 3 - records.length} crates</strong> restants avant le scan automatique.
+                      </p>
+                      <div className="w-full h-1.5 bg-amber-200 rounded-full mt-1 overflow-hidden">
+                        <div
+                          className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, (records.length / (CYCLE_SIZE * 3)) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* ── 3. Scan result banner ─────────────── */}
+              {scanResult && (
+                <Card className={scanResult.valid ? 'border-emerald-200 bg-emerald-50 shrink-0' : 'border-red-200 bg-red-50 shrink-0'}>
+                  <CardContent className="py-2.5 px-3 flex items-start gap-2.5">
+                    {scanResult.valid ? (
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <Info className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                    )}
+                    <div className="min-w-0">
+                      <p className={`text-xs font-medium ${scanResult.valid ? 'text-emerald-800' : 'text-red-800'}`}>
+                        {scanResult.message}
+                      </p>
+                      {scanResult.valid && (
+                        <p className="text-[11px] text-emerald-600 mt-0.5">
+                          {scanResult.totalCycles} cycle(s) complet(s) • Position : {scanResult.currentCyclePosition}/{CYCLE_SIZE}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* ── 4. Cycle en cours (aligned with buttons) ── */}
+              {cycleStats && scanResult?.valid && (
+                <Card className="shrink-0">
+                  <CardHeader className="pb-2 pt-3 px-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-xs font-medium flex items-center gap-1.5">
+                        <Grid3X3 className="h-3.5 w-3.5" />
+                        Cycle en cours
+                      </CardTitle>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {progressPercent}%
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-3 pb-3">
+                    <div className="w-full h-1.5 bg-muted rounded-full mb-3 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-300"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {RARITY_CONFIG.map((c) => {
+                        const stat = cycleStats[c.rarity];
+                        const isComplete = stat.remaining <= 0;
+                        return (
+                          <div
+                            key={c.rarity}
+                            className={`rounded-md border-2 p-2 ${
+                              isComplete
+                                ? 'border-emerald-300 bg-emerald-50'
+                                : `${c.color} border`
+                            }`}
+                          >
+                            <div className="flex items-center gap-1 mb-1">
+                              {c.icon}
+                              <span className={`text-[11px] font-semibold ${c.textColor}`}>{c.label}</span>
+                            </div>
+                            <div className="flex items-baseline gap-0.5">
+                              <span className={`text-lg font-bold ${c.textColor}`}>{stat.dropped}</span>
+                              <span className="text-[10px] text-muted-foreground">/ {c.expected}</span>
+                            </div>
+                            <div className="mt-1 w-full h-1 bg-black/10 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  c.rarity === 'Rare' ? 'bg-sky-400'
+                                  : c.rarity === 'Big Rare' ? 'bg-cyan-500'
+                                  : c.rarity === 'Epic' ? 'bg-purple-500'
+                                  : 'bg-amber-500'
+                                }`}
+                                style={{ width: `${Math.min(100, (stat.dropped / c.expected) * 100)}%` }}
+                              />
+                            </div>
+                            <div className={`text-[10px] mt-0.5 font-medium ${
+                              isComplete ? 'text-emerald-600' : 'text-muted-foreground'
+                            }`}>
+                              {isComplete ? '✓ Complété' : `${stat.remaining} restant${stat.remaining > 1 ? 's' : ''}`}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Legendary alerts */}
+                    {legendDropped > 0 && (
+                      <div className="mt-3 p-2 rounded-md bg-emerald-50 border border-emerald-200 flex items-center gap-2">
+                        <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <p className="text-[11px] text-emerald-800">
+                          <strong>Legendary obtenu ce cycle !</strong> Mode auto sans risque.
+                        </p>
+                      </div>
+                    )}
+                    {legendDropped === 0 && legendRemaining === 1 && progressPercent > 50 && (
+                      <div className="mt-3 p-2 rounded-md bg-amber-50 border border-amber-200 flex items-center gap-2">
+                        <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <p className="text-[11px] text-amber-800">
+                          <strong>Legendary pas encore tombé.</strong>{' '}
+                          {progressPercent > 85
+                            ? 'Ça devrait tomber bientôt !'
+                            : 'Continue à enregistrer.'}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* ── 5. Summary + Visualization side by side ── */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
+
+                {/* Summary */}
+                <Card>
+                  <CardContent className="py-2.5 px-3">
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div>
+                        <div className="text-base font-bold font-mono">{records.length}</div>
+                        <div className="text-[10px] text-muted-foreground">Total</div>
+                      </div>
+                      <div>
+                        <div className="text-base font-bold font-mono">{scanResult?.totalCycles ?? 0}</div>
+                        <div className="text-[10px] text-muted-foreground">Cycles</div>
+                      </div>
+                      <div>
+                        <div className="text-base font-bold font-mono text-amber-600">{records.filter((r) => r === 'Legendary').length}</div>
+                        <div className="text-[10px] text-muted-foreground">Légendaires</div>
+                      </div>
+                      <div>
+                        <div className="text-base font-bold font-mono">{scanResult?.currentCyclePosition ?? '-'}</div>
+                        <div className="text-[10px] text-muted-foreground">Position</div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 
-                {/* Progress banner before scan threshold */}
-                {!scanResult && records.length > 0 && (
-                  <Card className="border-amber-200 bg-amber-50">
-                    <CardContent className="py-2.5 px-3 flex items-center gap-2.5">
-                      <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-xs text-amber-800">
-                          <strong>{CYCLE_SIZE * 3 - records.length} crates</strong> restants avant le scan.
-                        </p>
-                        <div className="w-full h-1.5 bg-amber-200 rounded-full mt-1 overflow-hidden">
-                          <div
-                            className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(100, (records.length / (CYCLE_SIZE * 3)) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Scan result banner */}
-                {scanResult && (
-                  <Card className={scanResult.valid ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}>
-                    <CardContent className="py-2.5 px-3 flex items-start gap-2.5">
-                      {scanResult.valid ? (
-                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                      ) : (
-                        <Info className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
-                      )}
-                      <div className="min-w-0">
-                        <p className={`text-xs font-medium ${scanResult.valid ? 'text-emerald-800' : 'text-red-800'}`}>
-                          {scanResult.message}
-                        </p>
-                        {scanResult.valid && (
-                          <p className="text-[11px] text-emerald-600 mt-0.5">
-                            {scanResult.totalCycles} cycle(s) complet(s) • Position: {scanResult.currentCyclePosition}/{CYCLE_SIZE}
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Cycle Stats — compact horizontal */}
-                {cycleStats && scanResult?.valid && (
-                  <Card>
-                    <CardHeader className="pb-2 pt-3 px-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-xs font-medium flex items-center gap-1.5">
-                          <Grid3X3 className="h-3.5 w-3.5" />
-                          Cycle en cours
-                        </CardTitle>
-                        <Badge variant="secondary" className="text-[10px]">
-                          {progressPercent}%
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="px-3 pb-3">
-                      <div className="w-full h-1.5 bg-muted rounded-full mb-3 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-300"
-                          style={{ width: `${progressPercent}%` }}
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {RARITY_CONFIG.map((c) => {
-                          const stat = cycleStats[c.rarity];
-                          const isComplete = stat.remaining <= 0;
-                          return (
-                            <div
-                              key={c.rarity}
-                              className={`rounded-md border-2 p-2 ${
-                                isComplete
-                                  ? 'border-emerald-300 bg-emerald-50'
-                                  : `${c.color} border`
-                              }`}
-                            >
-                              <div className="flex items-center gap-1 mb-1">
-                                {c.icon}
-                                <span className={`text-[11px] font-semibold ${c.textColor}`}>{c.label}</span>
-                              </div>
-                              <div className="flex items-baseline gap-0.5">
-                                <span className={`text-lg font-bold ${c.textColor}`}>{stat.dropped}</span>
-                                <span className="text-[10px] text-muted-foreground">/ {c.expected}</span>
-                              </div>
-                              <div className="mt-1 w-full h-1 bg-black/10 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-300 ${
-                                    c.rarity === 'Rare' ? 'bg-sky-400'
-                                    : c.rarity === 'Big Rare' ? 'bg-cyan-500'
-                                    : c.rarity === 'Epic' ? 'bg-purple-500'
-                                    : 'bg-amber-500'
-                                  }`}
-                                  style={{ width: `${Math.min(100, (stat.dropped / c.expected) * 100)}%` }}
-                                />
-                              </div>
-                              <div className={`text-[10px] mt-0.5 font-medium ${
-                                isComplete ? 'text-emerald-600' : 'text-muted-foreground'
-                              }`}>
-                                {isComplete ? '✓ Complété' : `${stat.remaining} restant${stat.remaining > 1 ? 's' : ''}`}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Legendary alerts */}
-                      {legendDropped > 0 && (
-                        <div className="mt-3 p-2 rounded-md bg-emerald-50 border border-emerald-200 flex items-center gap-2">
-                          <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                          <p className="text-[11px] text-emerald-800">
-                            <strong>Legendary obtenu ce cycle !</strong> Mode auto sans risque.
-                          </p>
-                        </div>
-                      )}
-                      {legendDropped === 0 && legendRemaining === 1 && progressPercent > 50 && (
-                        <div className="mt-3 p-2 rounded-md bg-amber-50 border border-amber-200 flex items-center gap-2">
-                          <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                          <p className="text-[11px] text-amber-800">
-                            <strong>Legendary pas encore tombé.</strong>{' '}
-                            {progressPercent > 85
-                              ? 'Ça devrait tomber bientôt !'
-                              : 'Continue à enregistrer.'}
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
                 {/* Cycle Visualization */}
                 {scanResult?.valid && (
-                  <Card>
-                    <CardHeader className="pb-2 pt-3 px-3">
+                  <Card className="flex flex-col">
+                    <CardHeader className="pb-2 pt-2.5 px-3">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-xs font-medium flex items-center gap-1.5">
                           <History className="h-3.5 w-3.5" />
@@ -690,7 +763,7 @@ export default function CrateTracker() {
                         )}
                       </div>
                     </CardHeader>
-                    <CardContent className="px-3 pb-3">
+                    <CardContent className="px-3 pb-3 flex-1 min-h-0 overflow-y-auto">
                       {!showHistory ? (
                         <CycleGrid
                           cycle={scanResult.incompleteCycle.length > 0
@@ -729,92 +802,8 @@ export default function CrateTracker() {
                     </CardContent>
                   </Card>
                 )}
-
-                {/* Summary — compact inline */}
-                <Card>
-                  <CardContent className="py-2.5 px-3">
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <div>
-                        <div className="text-base font-bold font-mono">{records.length}</div>
-                        <div className="text-[10px] text-muted-foreground">Total</div>
-                      </div>
-                      <div>
-                        <div className="text-base font-bold font-mono">{scanResult?.totalCycles ?? 0}</div>
-                        <div className="text-[10px] text-muted-foreground">Cycles</div>
-                      </div>
-                      <div>
-                        <div className="text-base font-bold font-mono text-amber-600">{records.filter((r) => r === 'Legendary').length}</div>
-                        <div className="text-[10px] text-muted-foreground">Légendaires</div>
-                      </div>
-                      <div>
-                        <div className="text-base font-bold font-mono">{scanResult?.currentCyclePosition ?? '-'}</div>
-                        <div className="text-[10px] text-muted-foreground">Position</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
-            </div>
 
-            {/* ─── Right Column: History (full height) ──── */}
-            <div className="lg:col-span-7 xl:col-span-8 flex flex-col min-h-0">
-              <Card className="flex-1 flex flex-col min-h-0">
-                <div className="flex items-center justify-between px-3 pt-2 pb-1 shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <List className="h-3.5 w-3.5" />
-                    <span className="text-xs font-medium">Historique</span>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] font-mono">
-                    #{records.length}
-                  </Badge>
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
-                  {records.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                      <Swords className="h-10 w-10 mb-2 opacity-30" />
-                      <p className="text-sm">Aucun enregistrement</p>
-                      <p className="text-xs">Clique sur les boutons à gauche</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-0.5">
-                      {records.map((r, i) => {
-                        const config = RARITY_CONFIG.find((c) => c.rarity === r)!;
-                        const isCycleStart =
-                          scanResult && scanResult.cycleStart >= 0 && i === scanResult.cycleStart;
-                        return (
-                          <div
-                            key={i}
-                            className={`flex items-center gap-1 px-1 py-px rounded text-[11px] ${config.color}`}
-                          >
-                            <span className="text-muted-foreground font-mono w-5 text-right shrink-0">
-                              {i + 1}
-                            </span>
-                            <span
-                              className="w-1.5 h-1.5 rounded-full shrink-0"
-                              style={{
-                                backgroundColor:
-                                  r === 'Rare' ? '#38bdf8'
-                                  : r === 'Big Rare' ? '#06b6d4'
-                                  : r === 'Epic' ? '#a855f7'
-                                  : '#f59e0b',
-                              }}
-                            />
-                            <span className={config.textColor + ' font-medium truncate'}>{config.label}</span>
-                            {isCycleStart && (
-                              <span className="text-[8px] border border-amber-400 text-amber-600 rounded px-0.5 ml-auto">
-                                C↓
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div ref={historyEndRef} />
-                  </>
-                  )}
-                </div>
-              </Card>
             </div>
           </div>
         </main>
