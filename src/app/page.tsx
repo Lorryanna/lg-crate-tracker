@@ -155,7 +155,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.8.1';
+const APP_VERSION = 'v1.9.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -169,8 +169,10 @@ export default function CrateTracker() {
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const historyContainerRef = useRef<HTMLDivElement>(null);
+  const prevLengthRef = useRef(records.length);
 
   // ─── Computed scan & stats ─────────────────────────────
 
@@ -294,6 +296,22 @@ export default function CrateTracker() {
     const el = historyContainerRef.current;
     if (el) {
       el.scrollTop = el.scrollHeight;
+    }
+  }, [records.length]);
+
+  // ─── Flash highlight on last added record (5s) ────────
+
+  useEffect(() => {
+    const prev = prevLengthRef.current;
+    const curr = records.length;
+    prevLengthRef.current = curr;
+    if (curr > prev && curr - prev === 1) {
+      setHighlightedIndex(curr - 1);
+      const timer = setTimeout(() => setHighlightedIndex(null), 5000);
+      return () => clearTimeout(timer);
+    }
+    if (curr < prev) {
+      setHighlightedIndex(null);
     }
   }, [records.length]);
 
@@ -491,10 +509,11 @@ export default function CrateTracker() {
                       {records.map((r, i) => {
                         const config = RARITY_CONFIG.find((c) => c.rarity === r)!;
                         const isCycleStart = cycleStartIndices.has(i);
+                        const isHighlighted = i === highlightedIndex;
                         return (
                           <div
                             key={i}
-                            className={`flex items-center gap-1 px-1 py-px rounded text-[11px] ${config.color}`}
+                            className={`flex items-center gap-1 px-1 py-px rounded text-[11px] ${config.color}${isHighlighted ? ' crate-flash' : ''}`}
                           >
                             <span className="text-muted-foreground font-mono w-5 text-right shrink-0">
                               {i + 1}
