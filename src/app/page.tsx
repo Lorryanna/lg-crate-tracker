@@ -155,7 +155,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.9.0';
+const APP_VERSION = 'v1.10.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -725,26 +725,38 @@ export default function CrateTracker() {
                       })}
                     </div>
 
-                    {/* Legendary alerts */}
-                    {legendDropped > 0 && (
-                      <div className="mt-2 p-1.5 rounded-md bg-emerald-50 border border-emerald-200 flex items-center gap-2">
-                        <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                        <p className="text-[11px] text-emerald-800">
-                          <strong>Legendary obtenu ce cycle !</strong> Mode auto sans risque.
-                        </p>
+                    {/* Prochain Legendary — probabilité proéminente */}
+                    <div className={`mt-2 flex items-center justify-between rounded-md border-2 px-3 py-2 ${
+                      legendDropped > 0
+                        ? 'border-emerald-300 bg-emerald-50'
+                        : progressPercent > 80
+                          ? 'border-amber-400 bg-amber-50'
+                          : 'border-amber-200 bg-amber-50/50'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <Trophy className={`h-4 w-4 shrink-0 ${legendDropped > 0 ? 'text-emerald-500' : 'text-amber-500'}`} />
+                        <span className="text-xs font-medium text-foreground">Prochain Legendary</span>
                       </div>
-                    )}
-                    {legendDropped === 0 && legendRemaining === 1 && progressPercent > 50 && (
-                      <div className="mt-2 p-1.5 rounded-md bg-amber-50 border border-amber-200 flex items-center gap-2">
-                        <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                        <p className="text-[11px] text-amber-800">
-                          <strong>Legendary pas encore tombé.</strong>{' '}
-                          {progressPercent > 85
-                            ? 'Ça devrait tomber bientôt !'
-                            : 'Continue à enregistrer.'}
-                        </p>
+                      <div className="flex items-baseline gap-1.5">
+                        {legendDropped > 0 ? (
+                          <span className="text-sm font-bold text-emerald-600">Obtenu ✓</span>
+                        ) : (
+                          <>
+                            <span className={`text-lg font-bold font-mono ${
+                              progressPercent > 80 ? 'text-amber-600' : 'text-amber-500'
+                            }`}>
+                              {remainingInCycle > 0
+                                ? ((1 / remainingInCycle) * 100).toFixed(1)
+                                : '—'}
+                            </span>
+                            <span className="text-xs text-muted-foreground">%
+                              <span className="font-mono text-[10px]">(1/{remainingInCycle})</span>
+                            </span>
+                          </>
+                        )}
                       </div>
-                    )}
+                    </div>
+
                   </CardContent>
                 </Card>
               )}
