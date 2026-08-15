@@ -1,5 +1,5 @@
 /**
- * Lust Goddess Crate Cycle Scanner (v2 — fuzzy matching)
+ * Lust Goddess Crate Cycle Scanner (v3 — sliding window + fuzzy)
  * 
  * The game uses a shuffled pool of 70 crates per cycle:
  * - 56 Rare
@@ -7,14 +7,19 @@
  * - 3 Epic
  * - 1 Legendary
  * 
- * v2 uses distance-based scoring to tolerate small data entry errors
- * (wrong rarity, missed/extra record) while still finding the best
- * cycle alignment.
+ * v3 improvements:
+ * - Sliding window: scans only the last 210 records so old errors
+ *   don't accumulate and corrupt the current cycle alignment.
+ * - Fuzzy scoring: tolerates small data entry errors.
+ * - Threshold lowered to 140 records (2 complete cycles).
  */
 
 export type Rarity = 'Rare' | 'Big Rare' | 'Epic' | 'Legendary';
 
 export const CYCLE_SIZE = 70;
+export const SCAN_WINDOW = CYCLE_SIZE * 3; // 210 — sliding window size
+export const MIN_RECORDS = CYCLE_SIZE * 2; // 140 — minimum to attempt scan
+
 export const EXPECTED: Record<Rarity, number> = {
   'Rare': 56,
   'Big Rare': 10,
@@ -37,21 +42,10 @@ export const RARITY_SHORT: Record<Rarity, string> = {
 };
 
 export const SHORT_TO_RARITY: Record<string, Rarity> = {
-  'R': 'Rare',
-  'B': 'Big Rare',
-  'E': 'Epic',
-  'L': 'Legendary',
-  'r': 'Rare',
-  'b': 'Big Rare',
-  'e': 'Epic',
-  'l': 'Legendary',
-  'rare': 'Rare',
-  'big rare': 'Big Rare',
-  'bigrare': 'Big Rare',
-  'epic': 'Epic',
-  'legendary': 'Legendary',
-  'lg': 'Legendary',
-  'br': 'Big Rare',
+  'R': 'Rare', 'B': 'Big Rare', 'E': 'Epic', 'L': 'Legendary',
+  'r': 'Rare', 'b': 'Big Rare', 'e': 'Epic', 'l': 'Legendary',
+  'rare': 'Rare', 'big rare': 'Big Rare', 'bigrare': 'Big Rare',
+  'epic': 'Epic', 'legendary': 'Legendary', 'lg': 'Legendary', 'br': 'Big Rare',
 };
 
 export interface CycleStats {
@@ -62,17 +56,17 @@ export interface CycleStats {
 export interface RarityDeviation {
   expected: number;
   actual: number;
-  diff: number; // positive = too many, negative = too few
+  diff: number;
 }
 
 export interface CycleErrorInfo {
-  distance: number; // total absolute deviation (0 = perfect)
+  distance: number;
   details: Record<Rarity, RarityDeviation>;
 }
 
 export interface ScanResult {
   valid: boolean;
-  cycleStart: number;
+  cycleStart: number; // absolute index in full records array
   currentCyclePosition: number;
   currentCycle: Rarity[];
   cycleHistory: Rarity[][];
@@ -80,11 +74,11 @@ export interface ScanResult {
   totalCycles: number;
   incompleteCycle: Rarity[];
   message: string;
-  // v2 — fuzzy error info
-  hasErrors: boolean; // true if any complete cycle has distance > 0
-  totalDistance: number; // sum of distances across all complete cycles
-  cycleErrors: (CycleErrorInfo | null)[]; // null = perfect, object = error details
-  incompleteCycleErrors: CycleErrorInfo | null; // current incomplete cycle deviations
+  hasErrors: boolean;
+  totalDistance: number;
+  cycleErrors: (CycleErrorInfo | null)[];
+  incompleteCycleErrors: CycleErrorInfo | null;
+  windowStart: number; // index where the sliding window begins
 }
 
 function countRarities(segment: Rarity[]): Record<Rarity, number> {
@@ -104,7 +98,6 @@ function isValidCycle(segment: Rarity[]): boolean {
   return true;
 }
 
-/** Total absolute deviation from expected distribution (0 = perfect) */
 function cycleDistance(segment: Rarity[]): number {
   if (segment.length !== CYCLE_SIZE) return Infinity;
   const counts = countRarities(segment);
@@ -115,7 +108,6 @@ function cycleDistance(segment: Rarity[]): number {
   return distance;
 }
 
-/** Detailed per-rarity deviation info for a segment */
 function getCycleErrorInfo(segment: Rarity[]): CycleErrorInfo {
   const counts = countRarities(segment);
   const details: Record<Rarity, RarityDeviation> = {} as Record<Rarity, RarityDeviation>;
@@ -131,39 +123,41 @@ function getCycleErrorInfo(segment: Rarity[]): CycleErrorInfo {
 
 export function scanCycles(records: Rarity[]): ScanResult {
   const defaultResult: ScanResult = {
-    valid: false,
-    cycleStart: -1,
-    currentCyclePosition: -1,
-    currentCycle: [],
-    cycleHistory: [],
-    cycleValidities: [],
-    totalCycles: 0,
-    incompleteCycle: [],
-    message: '',
-    hasErrors: false,
-    totalDistance: 0,
-    cycleErrors: [],
-    incompleteCycleErrors: null,
+    valid: false, cycleStart: -1, currentCyclePosition: -1,
+    currentCycle: [], cycleHistory: [], cycleValidities: [],
+    totalCycles: 0, incompleteCycle: [], message: '',
+    hasErrors: false, totalDistance: 0, cycleErrors: [],
+    incompleteCycleErrors: null, windowStart: 0,
   };
 
-  if (records.length < CYCLE_SIZE * 3) {
-    const needed = CYCLE_SIZE * 3 - records.length;
-    defaultResult.message = `Besoin d'au moins 210 enregistrements (3 cycles complets) pour scanner. Actuel: ${records.length}. Il en manque ${needed}!`;
+  if (records.length < MIN_RECORDS) {
+    const needed = MIN_RECORDS - records.length;
+    defaultResult.message = `Besoin d'au moins ${MIN_RECORDS} enregistrements pour scanner. Actuel: ${records.length}. Il en manque ${needed}!`;
     return defaultResult;
   }
 
-  // ─── Fuzzy scoring: try each possible start position ───
-  // Score = (perfect cycles * 10000) - weighted total distance
-  // This strongly prefers perfect cycles but still ranks imperfect ones
+  // ─── Sliding window: scan only the last SCAN_WINDOW records ───
+  let windowRecords: Rarity[];
+  let windowOffset: number;
+
+  if (records.length > SCAN_WINDOW) {
+    windowRecords = records.slice(-SCAN_WINDOW);
+    windowOffset = records.length - SCAN_WINDOW;
+  } else {
+    windowRecords = records;
+    windowOffset = 0;
+  }
+
+  // ─── Fuzzy scoring: try each possible start within the window ─
 
   let bestScore = -Infinity;
-  let bestStart = 0;
+  let bestStart = 0; // relative to windowRecords
   const perfectStarts: number[] = [];
 
-  const maxStart = records.length - CYCLE_SIZE;
+  const maxStart = windowRecords.length - CYCLE_SIZE;
 
   for (let i = 0; i <= maxStart; i++) {
-    const remaining = records.length - i;
+    const remaining = windowRecords.length - i;
     const numCycles = Math.floor(remaining / CYCLE_SIZE);
     let perfectCount = 0;
     let weightedDistance = 0;
@@ -171,9 +165,9 @@ export function scanCycles(records: Rarity[]): ScanResult {
 
     for (let j = 0; j < numCycles; j++) {
       const segStart = i + j * CYCLE_SIZE;
-      const segment = records.slice(segStart, segStart + CYCLE_SIZE);
+      const segment = windowRecords.slice(segStart, segStart + CYCLE_SIZE);
       const dist = cycleDistance(segment);
-      // Weight later cycles slightly more (they're more recent, more likely correct)
+      // Weight later cycles more (more recent = more reliable)
       weightedDistance += dist * (1 + j * 0.15);
       if (dist === 0) {
         perfectCount++;
@@ -196,12 +190,11 @@ export function scanCycles(records: Rarity[]): ScanResult {
 
   // ─── Determine which start to use ─────────────────────
 
-  let chosenStart: number;
+  let chosenStart: number; // relative to windowRecords
   let isPerfect: boolean;
 
   if (perfectStarts.length > 0) {
-    // Perfect starts exist — pick the one with most perfect cycles (they all have 0 distance)
-    chosenStart = perfectStarts[perfectStarts.length - 1]; // prefer latest start (more data after)
+    chosenStart = perfectStarts[perfectStarts.length - 1];
     isPerfect = true;
     if (perfectStarts.length === 1) {
       defaultResult.message = 'Correspondance de cycle parfaite trouvée ! 🎯';
@@ -209,22 +202,20 @@ export function scanCycles(records: Rarity[]): ScanResult {
       defaultResult.message = `${perfectStarts.length} positions de départ possibles. La plus récente est affichée.`;
     }
   } else {
-    // No perfect start — use fuzzy best
     chosenStart = bestStart;
     isPerfect = false;
-    // Compute the total distance for the chosen start to quantify errors
-    const rem = records.length - chosenStart;
+    const rem = windowRecords.length - chosenStart;
     const nc = Math.floor(rem / CYCLE_SIZE);
     let totalDist = 0;
     for (let j = 0; j < nc; j++) {
-      totalDist += cycleDistance(records.slice(chosenStart + j * CYCLE_SIZE, chosenStart + j * CYCLE_SIZE + CYCLE_SIZE));
+      totalDist += cycleDistance(windowRecords.slice(chosenStart + j * CYCLE_SIZE, chosenStart + j * CYCLE_SIZE + CYCLE_SIZE));
     }
-    defaultResult.message = `Aucun cycle parfait trouvé (écart total: ${totalDist}). Meilleure estimation affichée — il y a probablement des erreurs de saisie.`;
+    defaultResult.message = `Aucun cycle parfait trouvé (écart total: ${totalDist}). Meilleure estimation affichée — erreurs de saisie probables.`;
   }
 
-  // ─── Extract cycles from the chosen start ─────────────
+  // ─── Extract cycles from the chosen start (within window) ─
 
-  const remaining = records.length - chosenStart;
+  const remaining = windowRecords.length - chosenStart;
   const numCycles = Math.floor(remaining / CYCLE_SIZE);
   const cycles: Rarity[][] = [];
   const cycleValidities: boolean[] = [];
@@ -234,7 +225,7 @@ export function scanCycles(records: Rarity[]): ScanResult {
 
   for (let j = 0; j < numCycles; j++) {
     const segStart = chosenStart + j * CYCLE_SIZE;
-    const segment = records.slice(segStart, segStart + CYCLE_SIZE);
+    const segment = windowRecords.slice(segStart, segStart + CYCLE_SIZE);
     const valid = isValidCycle(segment);
     const errorInfo = getCycleErrorInfo(segment);
     cycles.push(segment);
@@ -244,14 +235,17 @@ export function scanCycles(records: Rarity[]): ScanResult {
     if (errorInfo.distance > 0) hasErrors = true;
   }
 
-  const incomplete = records.slice(chosenStart + numCycles * CYCLE_SIZE);
+  const incomplete = windowRecords.slice(chosenStart + numCycles * CYCLE_SIZE);
   const incompleteErrors = incomplete.length > 0 ? getCycleErrorInfo(incomplete) : null;
 
   const currentCycle = cycles.length > 0 ? cycles[cycles.length - 1] : [];
   const currentCyclePosition = incomplete.length;
 
+  // Convert to absolute positions in the full records array
+  const absoluteCycleStart = chosenStart + windowOffset;
+
   defaultResult.valid = isPerfect || cycleValidities.filter(Boolean).length > 0 || totalDistance <= numCycles * 6;
-  defaultResult.cycleStart = chosenStart;
+  defaultResult.cycleStart = absoluteCycleStart;
   defaultResult.currentCyclePosition = currentCyclePosition;
   defaultResult.currentCycle = currentCycle;
   defaultResult.cycleHistory = cycles;
@@ -262,6 +256,7 @@ export function scanCycles(records: Rarity[]): ScanResult {
   defaultResult.totalDistance = totalDistance;
   defaultResult.cycleErrors = cycleErrors;
   defaultResult.incompleteCycleErrors = incompleteErrors;
+  defaultResult.windowStart = windowOffset;
 
   return defaultResult;
 }

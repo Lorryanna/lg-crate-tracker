@@ -46,6 +46,7 @@ import type { Rarity } from '@/lib/crate-scanner';
 import {
   RARITY_SHORT,
   CYCLE_SIZE,
+  MIN_RECORDS,
   EXPECTED,
   scanCycles,
   getCycleStats,
@@ -159,7 +160,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v2.0.0';
+const APP_VERSION = 'v3.0.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -181,7 +182,7 @@ export default function CrateTracker() {
   // ─── Computed scan & stats ─────────────────────────────
 
   const scanResult: ScanResult | null = useMemo(() => {
-    if (records.length < CYCLE_SIZE * 3) return null;
+    if (records.length < MIN_RECORDS) return null;
     return scanCycles(records);
   }, [records]);
 
@@ -324,6 +325,7 @@ export default function CrateTracker() {
   const cycleStartIndices = useMemo(() => {
     if (!scanResult || scanResult.cycleStart < 0) return new Set<number>();
     const indices = new Set<number>();
+    // Cycle starts are relative to the sliding window
     for (let c = 0; c <= scanResult.totalCycles; c++) {
       const idx = scanResult.cycleStart + c * CYCLE_SIZE;
       if (idx < records.length) indices.add(idx);
@@ -629,11 +631,12 @@ export default function CrateTracker() {
                     <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-amber-800">
-                        <strong>{CYCLE_SIZE * 3 - records.length} crates</strong> restants avant le scan automatique.
+                        <strong>{MIN_RECORDS - records.length} crates</strong> restants avant le scan automatique.
                       </p>
                       <div className="w-full h-1 bg-amber-200 rounded-full mt-0.5 overflow-hidden">
                         <div
                           className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, (records.length / MIN_RECORDS) * 100)}%` }}
                         />
                       </div>
                     </div>
