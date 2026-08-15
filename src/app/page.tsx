@@ -40,16 +40,20 @@ import {
   Grid3X3,
   List,
   Save,
+  AlertTriangle,
 } from 'lucide-react';
 import type { Rarity } from '@/lib/crate-scanner';
 import {
   RARITY_SHORT,
   CYCLE_SIZE,
+  EXPECTED,
   scanCycles,
   getCycleStats,
   parseImportText,
   type CycleStats as CycleStatsType,
   type ScanResult,
+  type CycleErrorInfo,
+  type RarityDeviation,
 } from '@/lib/crate-scanner';
 
 // ─── localStorage helpers ─────────────────────────────────
@@ -155,7 +159,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v1.10.0';
+const APP_VERSION = 'v2.0.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(
@@ -634,22 +638,36 @@ export default function CrateTracker() {
 
               {/* ── 3. Scan result banner ─────────────── */}
               {scanResult && (
-                <Card className={scanResult.valid ? 'border-emerald-200 bg-emerald-50 shrink-0 py-0 gap-0' : 'border-red-200 bg-red-50 shrink-0 py-0 gap-0'}>
+                <Card className={
+                  scanResult.hasErrors
+                    ? 'border-amber-200 bg-amber-50 shrink-0 py-0 gap-0'
+                    : scanResult.valid
+                      ? 'border-emerald-200 bg-emerald-50 shrink-0 py-0 gap-0'
+                      : 'border-red-200 bg-red-50 shrink-0 py-0 gap-0'
+                }>
                   <CardContent className="py-1.5 px-2.5 flex items-start gap-2">
-                    {scanResult.valid ? (
+                    {scanResult.hasErrors ? (
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    ) : scanResult.valid ? (
                       <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
                     ) : (
                       <Info className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                     )}
                     <div className="min-w-0">
-                      <p className={`text-xs font-medium ${scanResult.valid ? 'text-emerald-800' : 'text-red-800'}`}>
+                      <p className={`text-xs font-medium ${
+                        scanResult.hasErrors ? 'text-amber-800'
+                        : scanResult.valid ? 'text-emerald-800'
+                        : 'text-red-800'
+                      }`}>
                         {scanResult.message}
                       </p>
-                      {scanResult.valid && (
-                        <p className="text-[11px] text-emerald-600 mt-0.5">
-                          {scanResult.totalCycles} cycle(s) complet(s) • Position : {scanResult.currentCyclePosition}/{CYCLE_SIZE}
-                        </p>
-                      )}
+                      <p className={`text-[11px] mt-0.5 ${
+                        scanResult.hasErrors ? 'text-amber-600'
+                        : 'text-emerald-600'
+                      }`}>
+                        {scanResult.totalCycles} cycle(s) complet(s) • Position : {scanResult.currentCyclePosition}/{CYCLE_SIZE}
+                        {scanResult.hasErrors && ` • Écart total: ${scanResult.totalDistance}`}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -757,6 +775,25 @@ export default function CrateTracker() {
                       </div>
                     </div>
 
+                  {/* Erreurs détectées dans le cycle en cours */}
+                  {scanResult.incompleteCycleErrors && scanResult.incompleteCycleErrors.distance > 0 && (
+                    <div className="mt-2 p-1.5 rounded-md bg-red-50 border border-red-200 flex items-start gap-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-red-800 font-medium">Anomalie dans le cycle en cours</p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                          {(Object.entries(scanResult.incompleteCycleErrors.details) as [Rarity, RarityDeviation][])
+                            .filter(([, d]) => d.diff !== 0)
+                            .map(([rarity, d]) => (
+                              <span key={rarity} className="text-[10px] text-red-700">
+                                {rarity}: {d.actual}/{EXPECTED[rarity]}
+                                {d.diff > 0 ? ` (+${d.diff})` : ` (${d.diff})`}
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   </CardContent>
                 </Card>
               )}
@@ -819,19 +856,37 @@ export default function CrateTracker() {
                         />
                       ) : (
                         <div className="space-y-4">
-                          {scanResult.cycleHistory.map((cycle, i) => (
-                            <div key={i}>
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <span className="text-[11px] font-medium text-muted-foreground">Cycle {i + 1}</span>
-                                {scanResult.cycleValidities[i] ? (
-                                  <Badge variant="outline" className="text-[9px] text-emerald-600 border-emerald-300">✓ Valide</Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-[9px] text-red-600 border-red-300">✗ Invalide</Badge>
-                                )}
+                          {scanResult.cycleHistory.map((cycle, i) => {
+                            const errInfo = scanResult.cycleErrors[i];
+                            return (
+                              <div key={i}>
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="text-[11px] font-medium text-muted-foreground">Cycle {i + 1}</span>
+                                  {errInfo ? (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-300 cursor-help">
+                                          ⚠ Écart: {errInfo.distance}
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="bottom" className="text-[10px] max-w-xs">
+                                        <div className="space-y-0.5">
+                                          {(Object.entries(errInfo.details) as [Rarity, RarityDeviation][])
+                                            .filter(([, d]) => d.diff !== 0)
+                                            .map(([r, d]) => (
+                                              <div key={r}>{r}: {d.actual}/{d.expected} ({d.diff > 0 ? '+' : ''}{d.diff})</div>
+                                            ))}
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[9px] text-emerald-600 border-emerald-300">✓ Valide</Badge>
+                                  )}
+                                </div>
+                                <CycleGrid cycle={cycle} cycleSize={CYCLE_SIZE} />
                               </div>
-                              <CycleGrid cycle={cycle} cycleSize={CYCLE_SIZE} />
-                            </div>
-                          ))}
+                            );
+                          })}
                           {scanResult.incompleteCycle.length > 0 && (
                             <div>
                               <div className="flex items-center gap-2 mb-1.5">
