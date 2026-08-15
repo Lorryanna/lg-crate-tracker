@@ -783,25 +783,28 @@ export default function CrateTracker() {
                       </div>
                     </div>
 
-                  {/* Erreurs détectées dans le cycle en cours */}
-                  {scanResult.incompleteCycleErrors && scanResult.incompleteCycleErrors.distance > 0 && (
+                  {/* Erreurs détectées dans le cycle en cours — sur-comptes uniquement */}
+                  {(() => {
+                    if (!scanResult.incompleteCycleErrors) return null;
+                    const overCounted = (Object.entries(scanResult.incompleteCycleErrors.details) as [Rarity, RarityDeviation][])
+                      .filter(([, d]) => d.diff > 0);
+                    if (overCounted.length === 0) return null;
+                    return (
                     <div className="mt-2 p-1.5 rounded-md bg-red-50 border border-red-200 flex items-start gap-2">
                       <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                       <div className="min-w-0">
                         <p className="text-[11px] text-red-800 font-medium">Anomalie dans le cycle en cours</p>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                          {(Object.entries(scanResult.incompleteCycleErrors.details) as [Rarity, RarityDeviation][])
-                            .filter(([, d]) => d.diff !== 0)
-                            .map(([rarity, d]) => (
-                              <span key={rarity} className="text-[10px] text-red-700">
-                                {rarity}: {d.actual}/{EXPECTED[rarity]}
-                                {d.diff > 0 ? ` (+${d.diff})` : ` (${d.diff})`}
-                              </span>
-                            ))}
+                          {overCounted.map(([rarity, d]) => (
+                            <span key={rarity} className="text-[10px] text-red-700">
+                              {rarity}: {d.actual}/{d.expected} (+{d.diff})
+                            </span>
+                          ))}
                         </div>
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
                   </CardContent>
                 </Card>
               )}
