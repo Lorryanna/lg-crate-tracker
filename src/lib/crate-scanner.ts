@@ -18,7 +18,7 @@ export type Rarity = 'Rare' | 'Big Rare' | 'Epic' | 'Legendary';
 
 export const CYCLE_SIZE = 70;
 export const SCAN_WINDOW = CYCLE_SIZE * 3; // 210 — sliding window size
-export const MIN_RECORDS = CYCLE_SIZE * 2; // 140 — minimum to attempt scan
+export const MIN_RECORDS = CYCLE_SIZE * 3; // 210 — minimum to attempt scan
 
 export const EXPECTED: Record<Rarity, number> = {
   'Rare': 56,
