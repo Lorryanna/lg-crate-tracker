@@ -1,5 +1,5 @@
 /**
- * Lust Goddess Crate Cycle Scanner (v3.2.0 — Legendary-weighted scoring)
+ * Lust Goddess Crate Cycle Scanner (v3.3.0 — scoring par famille de couleurs)
  * 
  * The game uses a shuffled pool of 70 crates per cycle:
  * - 56 Rare
@@ -7,11 +7,14 @@
  * - 3 Epic
  * - 1 Legendary
  * 
- * v3.0.0: Sliding window à 140 enregistrements (2 cycles complets).
- * v3.1.0: Fenêtre repassée à 210 enregistrements (3 cycles complets).
- * v3.2.0: Scoring pondéré par Legendary — un cycle complet sans Legendary
- *   est lourdement pénalisé car c'est le signal de frontière le plus fort.
- *   Un cycle sans Legendary ne peut jamais être considéré « valide ».
+ * v3.0.0: Sliding window à 140 (2 cycles complets).
+ * v3.1.0: Fenêtre repassée à 210 (3 cycles complets).
+ * v3.2.0: Poids Legendary pour éviter les cycles sans Legendary.
+ * v3.3.0: Scoring pondéré par rareté selon la logique des couleurs du jeu:
+ *   - Rare / Big Rare (bleus) → poids 1 : inversion fréquente entre les deux
+ *   - Epic (violet) → poids 5 : erreur = plutôt oubli
+ *   - Legendary (jaune) → poids 20 : frontière de cycle (écart 0-138 entre 2L)
+ *   Un cycle complet sans Legendary est toujours invalide.
  */
 
 export type Rarity = 'Rare' | 'Big Rare' | 'Epic' | 'Legendary';
@@ -27,8 +30,16 @@ export const EXPECTED: Record<Rarity, number> = {
   'Legendary': 1,
 };
 
-// Poids du Legendary dans le scoring (signal de frontière de cycle)
-const LEGENDARY_SCORE_WEIGHT = 20;
+// Poids de scoring par rareté — basé sur la probabilité d'erreur selon la couleur:
+// Rare / Big Rare = bleus → inversion fréquente → faible pénalité
+// Epic = violet → erreur = oubli → pénalité moyenne
+// Legendary = jaune → frontière de cycle → forte pénalité
+const SCORE_WEIGHTS: Record<Rarity, number> = {
+  'Rare': 1,
+  'Big Rare': 1,
+  'Epic': 5,
+  'Legendary': 20,
+};
 
 export const RARITY_COLORS: Record<Rarity, { bg: string; text: string; border: string; dot: string; solid: string; ring: string }> = {
   'Rare': { bg: 'bg-sky-100', text: 'text-sky-800', border: 'border-sky-300', dot: 'bg-sky-400', solid: 'bg-sky-400', ring: 'ring-sky-300' },
@@ -169,15 +180,18 @@ export function scanCycles(records: Rarity[]): ScanResult {
     for (let j = 0; j < numCycles; j++) {
       const segStart = i + j * CYCLE_SIZE;
       const segment = windowRecords.slice(segStart, segStart + CYCLE_SIZE);
-      const dist = cycleDistance(segment);
       const counts = countRarities(segment);
-      // Pénalité lourde si le nombre de Legendary est incorrect
-      // (0 ou 2+ dans un cycle = frontière presque certainement fausse)
-      const legendDiff = Math.abs(counts['Legendary'] - EXPECTED['Legendary']);
-      const legendPenalty = legendDiff * LEGENDARY_SCORE_WEIGHT;
+      // Distance pondérée par rareté (couleur du jeu)
+      let segWeightedDist = 0;
+      let segPerfect = true;
+      for (const rarity of Object.keys(EXPECTED) as Rarity[]) {
+        const diff = Math.abs(counts[rarity] - EXPECTED[rarity]);
+        if (diff > 0) segPerfect = false;
+        segWeightedDist += diff * SCORE_WEIGHTS[rarity];
+      }
       // Weight later cycles more (more recent = more reliable)
-      weightedDistance += dist * (1 + j * 0.15) + legendPenalty * (1 + j * 0.15);
-      if (dist === 0 && legendDiff === 0) {
+      weightedDistance += segWeightedDist * (1 + j * 0.15);
+      if (segPerfect) {
         perfectCount++;
       } else {
         allPerfect = false;
