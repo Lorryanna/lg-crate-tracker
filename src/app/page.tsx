@@ -341,8 +341,13 @@ export default function CrateTracker() {
     : 0;
 
   const legendDropped = cycleStats ? cycleStats['Legendary'].dropped : 0;
-  const legendRemaining = cycleStats ? cycleStats['Legendary'].remaining : 1;
-  const remainingInCycle = scanResult ? CYCLE_SIZE - scanResult.currentCyclePosition : 0;
+  const legendRemaining = cycleStats ? Math.max(0, cycleStats['Legendary'].remaining) : 1;
+  // Actual remaining pool size (accounts for errors: over-counted rarities clamp to 0)
+  const actualRemaining = cycleStats
+    ? (Object.keys(cycleStats) as Rarity[]).reduce(
+        (sum, r) => sum + Math.max(0, cycleStats[r].remaining), 0
+      )
+    : 0;
 
   // ─── Render ──────────────────────────────────────────
 
@@ -733,8 +738,8 @@ export default function CrateTracker() {
                             </div>
                             {!isComplete && (
                               <div className="text-[10px] text-muted-foreground font-mono">
-                                → {remainingInCycle > 0
-                                  ? ((stat.remaining / remainingInCycle) * 100).toFixed(1)
+                                → {actualRemaining > 0
+                                  ? ((Math.max(0, stat.remaining) / actualRemaining) * 100).toFixed(1)
                                   : '0'}%
                               </div>
                             )}
@@ -763,12 +768,12 @@ export default function CrateTracker() {
                             <span className={`text-lg font-bold font-mono ${
                               progressPercent > 80 ? 'text-amber-600' : 'text-amber-500'
                             }`}>
-                              {remainingInCycle > 0
-                                ? ((1 / remainingInCycle) * 100).toFixed(1)
-                                : '—'}
+                              {legendRemaining > 0 && actualRemaining > 0
+                                ? ((legendRemaining / actualRemaining) * 100).toFixed(1)
+                                : '0'}
                             </span>
                             <span className="text-xs text-muted-foreground">%
-                              <span className="font-mono text-[10px]">(1/{remainingInCycle})</span>
+                              <span className="font-mono text-[10px]">({legendRemaining}/{actualRemaining})</span>
                             </span>
                           </>
                         )}
