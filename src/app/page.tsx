@@ -160,7 +160,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v3.0.0';
+const APP_VERSION = 'v3.1.0';
 
 export default function CrateTracker() {
   const records = useSyncExternalStore(

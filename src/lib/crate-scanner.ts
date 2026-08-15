@@ -1,5 +1,5 @@
 /**
- * Lust Goddess Crate Cycle Scanner (v3 — sliding window + fuzzy)
+ * Lust Goddess Crate Cycle Scanner (v3.1.0 — sliding window 210 + fuzzy)
  * 
  * The game uses a shuffled pool of 70 crates per cycle:
  * - 56 Rare
@@ -7,11 +7,10 @@
  * - 3 Epic
  * - 1 Legendary
  * 
- * v3 improvements:
- * - Sliding window: scans only the last 210 records so old errors
- *   don't accumulate and corrupt the current cycle alignment.
- * - Fuzzy scoring: tolerates small data entry errors.
- * - Threshold lowered to 140 records (2 complete cycles).
+ * v3.0.0: Sliding window à 140 enregistrements (2 cycles complets).
+ * v3.1.0: Fenêtre repassée à 210 enregistrements (3 cycles complets)
+ *   pour une meilleure détection du cycle en cours.
+ * - Fuzzy scoring: tolère les petites erreurs de saisie.
  */
 
 export type Rarity = 'Rare' | 'Big Rare' | 'Epic' | 'Legendary';
