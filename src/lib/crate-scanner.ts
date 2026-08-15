@@ -1,5 +1,5 @@
 /**
- * Lust Goddess Crate Cycle Scanner (v3.1.0 — sliding window 210 + fuzzy)
+ * Lust Goddess Crate Cycle Scanner (v3.2.0 — Legendary-weighted scoring)
  * 
  * The game uses a shuffled pool of 70 crates per cycle:
  * - 56 Rare
@@ -8,9 +8,10 @@
  * - 1 Legendary
  * 
  * v3.0.0: Sliding window à 140 enregistrements (2 cycles complets).
- * v3.1.0: Fenêtre repassée à 210 enregistrements (3 cycles complets)
- *   pour une meilleure détection du cycle en cours.
- * - Fuzzy scoring: tolère les petites erreurs de saisie.
+ * v3.1.0: Fenêtre repassée à 210 enregistrements (3 cycles complets).
+ * v3.2.0: Scoring pondéré par Legendary — un cycle complet sans Legendary
+ *   est lourdement pénalisé car c'est le signal de frontière le plus fort.
+ *   Un cycle sans Legendary ne peut jamais être considéré « valide ».
  */
 
 export type Rarity = 'Rare' | 'Big Rare' | 'Epic' | 'Legendary';
@@ -25,6 +26,9 @@ export const EXPECTED: Record<Rarity, number> = {
   'Epic': 3,
   'Legendary': 1,
 };
+
+// Poids du Legendary dans le scoring (signal de frontière de cycle)
+const LEGENDARY_SCORE_WEIGHT = 20;
 
 export const RARITY_COLORS: Record<Rarity, { bg: string; text: string; border: string; dot: string; solid: string; ring: string }> = {
   'Rare': { bg: 'bg-sky-100', text: 'text-sky-800', border: 'border-sky-300', dot: 'bg-sky-400', solid: 'bg-sky-400', ring: 'ring-sky-300' },
@@ -166,9 +170,14 @@ export function scanCycles(records: Rarity[]): ScanResult {
       const segStart = i + j * CYCLE_SIZE;
       const segment = windowRecords.slice(segStart, segStart + CYCLE_SIZE);
       const dist = cycleDistance(segment);
+      const counts = countRarities(segment);
+      // Pénalité lourde si le nombre de Legendary est incorrect
+      // (0 ou 2+ dans un cycle = frontière presque certainement fausse)
+      const legendDiff = Math.abs(counts['Legendary'] - EXPECTED['Legendary']);
+      const legendPenalty = legendDiff * LEGENDARY_SCORE_WEIGHT;
       // Weight later cycles more (more recent = more reliable)
-      weightedDistance += dist * (1 + j * 0.15);
-      if (dist === 0) {
+      weightedDistance += dist * (1 + j * 0.15) + legendPenalty * (1 + j * 0.15);
+      if (dist === 0 && legendDiff === 0) {
         perfectCount++;
       } else {
         allPerfect = false;
@@ -243,7 +252,12 @@ export function scanCycles(records: Rarity[]): ScanResult {
   // Convert to absolute positions in the full records array
   const absoluteCycleStart = chosenStart + windowOffset;
 
-  defaultResult.valid = isPerfect || cycleValidities.filter(Boolean).length > 0 || totalDistance <= numCycles * 6;
+  // Un cycle complet sans Legendary est TOUJOURS invalide
+  const hasCycleWithoutLegendary = cycles.some(
+    (c) => c.length === CYCLE_SIZE && countRarities(c)['Legendary'] === 0
+  );
+  defaultResult.valid = !hasCycleWithoutLegendary &&
+    (isPerfect || cycleValidities.filter(Boolean).length > 0 || totalDistance <= numCycles * 6);
   defaultResult.cycleStart = absoluteCycleStart;
   defaultResult.currentCyclePosition = currentCyclePosition;
   defaultResult.currentCycle = currentCycle;
