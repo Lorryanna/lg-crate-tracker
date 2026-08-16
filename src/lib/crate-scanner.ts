@@ -15,6 +15,9 @@
  *   - Epic (violet) → poids 5 : erreur = plutôt oubli
  *   - Legendary (jaune) → poids 20 : frontière de cycle (écart 0-138 entre 2L)
  *   Un cycle complet sans Legendary est toujours invalide.
+ * v3.4.0: Le scoring tranche seul — plus de surcharge « plus récent ».
+ *   Si 3 cycles parfaits sont trouvés depuis le début de la fenêtre,
+ *   c'est ce départ (le plus validant) qui est choisi, pas le plus récent.
  */
 
 export type Rarity = 'Rare' | 'Big Rare' | 'Epic' | 'Legendary';
@@ -166,7 +169,8 @@ export function scanCycles(records: Rarity[]): ScanResult {
 
   let bestScore = -Infinity;
   let bestStart = 0; // relative to windowRecords
-  const perfectStarts: number[] = [];
+  let bestPerfectCount = 0;
+  let bestWeightedDist = 0;
 
   const maxStart = windowRecords.length - CYCLE_SIZE;
 
@@ -175,7 +179,6 @@ export function scanCycles(records: Rarity[]): ScanResult {
     const numCycles = Math.floor(remaining / CYCLE_SIZE);
     let perfectCount = 0;
     let weightedDistance = 0;
-    let allPerfect = true;
 
     for (let j = 0; j < numCycles; j++) {
       const segStart = i + j * CYCLE_SIZE;
@@ -193,8 +196,6 @@ export function scanCycles(records: Rarity[]): ScanResult {
       weightedDistance += segWeightedDist * (1 + j * 0.15);
       if (segPerfect) {
         perfectCount++;
-      } else {
-        allPerfect = false;
       }
     }
 
@@ -203,29 +204,23 @@ export function scanCycles(records: Rarity[]): ScanResult {
     if (score > bestScore) {
       bestScore = score;
       bestStart = i;
-    }
-
-    if (allPerfect && numCycles > 0) {
-      perfectStarts.push(i);
+      bestPerfectCount = perfectCount;
+      bestWeightedDist = weightedDistance;
     }
   }
 
   // ─── Determine which start to use ─────────────────────
+  // Le scoring tranche seul : plus de cycles parfaits validés = meilleur départ.
+  // Pas de surcharge « plus récent ».
 
-  let chosenStart: number; // relative to windowRecords
-  let isPerfect: boolean;
+  const chosenStart = bestStart;
+  const isPerfect = bestWeightedDist === 0 && bestPerfectCount > 0;
 
-  if (perfectStarts.length > 0) {
-    chosenStart = perfectStarts[perfectStarts.length - 1];
-    isPerfect = true;
-    if (perfectStarts.length === 1) {
-      defaultResult.message = 'Correspondance de cycle parfaite trouvée ! 🎯';
-    } else {
-      defaultResult.message = `${perfectStarts.length} positions de départ possibles. La plus récente est affichée.`;
-    }
+  if (isPerfect) {
+    const rem = windowRecords.length - chosenStart;
+    const nc = Math.floor(rem / CYCLE_SIZE);
+    defaultResult.message = `${nc} cycle${nc > 1 ? 's' : ''} parfait${nc > 1 ? 's' : ''} trouvé${nc > 1 ? 's' : ''} ! 🎯`;
   } else {
-    chosenStart = bestStart;
-    isPerfect = false;
     const rem = windowRecords.length - chosenStart;
     const nc = Math.floor(rem / CYCLE_SIZE);
     let totalDist = 0;
