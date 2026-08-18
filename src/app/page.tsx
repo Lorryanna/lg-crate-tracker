@@ -522,7 +522,7 @@ export default function CrateTracker() {
                         readOnly
                         value={exportText}
                         rows={3}
-                        className="text-[11px] font-mono bg-muted/50 resize-none"
+                        className="text-[11px] font-mono bg-muted/50 resize-none max-h-24 overflow-y-auto"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
