@@ -224,10 +224,34 @@ export default function CrateTracker() {
 
   // ─── Computed scan & stats ─────────────────────────────
 
+  const hasReset = useMemo(() => entries.some(isResetEntry), [entries]);
+
   const scanResult: ScanResult | null = useMemo(() => {
-    if (cycleRecords.length < MIN_RECORDS) return null;
-    return scanCycles(cycleRecords);
-  }, [cycleRecords]);
+    if (cycleRecords.length >= MIN_RECORDS) {
+      return scanCycles(cycleRecords);
+    }
+    // After a reset, cycle start is known: position 0
+    if (hasReset && cycleRecords.length > 0) {
+      const pos = cycleRecords.length;
+      return {
+        valid: true,
+        cycleStart: 0,
+        currentCyclePosition: pos,
+        currentCycle: [],
+        cycleHistory: [],
+        cycleValidities: [],
+        totalCycles: 0,
+        incompleteCycle: cycleRecords,
+        message: `Cycle post-rank up — position ${pos}/${CYCLE_SIZE}`,
+        hasErrors: false,
+        totalDistance: 0,
+        cycleErrors: [],
+        incompleteCycleErrors: null,
+        windowStart: 0,
+      };
+    }
+    return null;
+  }, [cycleRecords, hasReset]);
 
   const cycleStats: Record<Rarity, CycleStatsType> | null = useMemo(() => {
     if (!scanResult?.valid) return null;
@@ -481,7 +505,7 @@ export default function CrateTracker() {
                       onChange={(e) => setImportText(e.target.value)}
                       placeholder={"R, R, B, E, L, ...\n*R pour enhanced\n[RESET] pour rank up"}
                       rows={4}
-                      className="text-xs font-mono"
+                      className="text-xs font-mono max-h-24 overflow-y-auto resize-none"
                     />
                     <Button onClick={handleImport} disabled={!importText.trim()} className="w-full gap-2">
                       <Upload className="h-4 w-4" /> Importer
