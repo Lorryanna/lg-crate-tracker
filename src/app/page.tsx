@@ -206,7 +206,6 @@ export default function CrateTracker() {
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
   const [enhancedMode, setEnhancedMode] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -250,8 +249,7 @@ export default function CrateTracker() {
     saveEntries([...current, { t: 'r' }]);
     cachedRaw = '';
     notifyListeners();
-    setResetOpen(false);
-    toast.success('⬆ Cycle réinitialisé (rank up)');
+    toast.success('⬆ Rank up enregistré (annuler avec Suppr)');
   }, []);
 
   const deleteLast = useCallback(() => {
@@ -773,38 +771,20 @@ export default function CrateTracker() {
                     </Tooltip>
 
                     <div className="flex items-center gap-1">
-                      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-                        <DialogTrigger asChild>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1 h-7 text-xs border-orange-300 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
-                              >
-                                <ArrowUpCircle className="h-3 w-3" />
-                                <span className="hidden xl:inline">Rank up</span>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Réinitialiser le cycle (changement de league)</TooltipContent>
-                          </Tooltip>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-sm">
-                          <DialogHeader>
-                            <DialogTitle>⬆ Rank up — Réinitialiser le cycle ?</DialogTitle>
-                            <DialogDescription>
-                              Vous allez marquer un changement de league. Le cycle de 70 crates redémarre à zéro.
-                              Les enregistrements précédents sont conservés dans l&apos;historique.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <DialogFooter>
-                            <DialogClose asChild>
-                              <Button variant="outline">Annuler</Button>
-                            </DialogClose>
-                            <Button className="bg-orange-500 hover:bg-orange-600" onClick={addReset}>Réinitialiser</Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={addReset}
+                            className="gap-1 h-7 text-xs border-orange-300 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                          >
+                            <ArrowUpCircle className="h-3 w-3" />
+                            <span className="hidden xl:inline">Rank up</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>⬆ Rank up — cycle réinitialisé (Suppr pour annuler)</TooltipContent>
+                      </Tooltip>
 
                       <Tooltip>
                         <TooltipTrigger asChild>
