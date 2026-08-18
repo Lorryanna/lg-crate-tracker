@@ -192,7 +192,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v4.0.0';
+const APP_VERSION = 'v4.0.1';
 
 export default function CrateTracker() {
   const entries = useSyncExternalStore(
@@ -317,19 +317,20 @@ export default function CrateTracker() {
     e.target.value = '';
   }, []);
 
+  const exportText = useMemo(() => exportEntriesText(entries), [entries]);
+  const exportJson = useMemo(() => JSON.stringify(entries), [entries]);
+
   const exportClipboard = useCallback(() => {
-    const text = exportEntriesText(entries);
-    navigator.clipboard.writeText(text).then(() => {
+    navigator.clipboard.writeText(exportText).then(() => {
       toast.success('Copié dans le presse-papier !');
       setExportOpen(false);
     }).catch(() => {
       toast.error('Impossible de copier');
     });
-  }, [entries]);
+  }, [exportText]);
 
   const exportFile = useCallback(() => {
-    const text = exportEntriesText(entries);
-    const blob = new Blob([text], { type: 'text/plain' });
+    const blob = new Blob([exportText], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -338,7 +339,28 @@ export default function CrateTracker() {
     URL.revokeObjectURL(url);
     toast.success('Fichier téléchargé !');
     setExportOpen(false);
-  }, [entries]);
+  }, [exportText]);
+
+  const exportJsonClipboard = useCallback(() => {
+    navigator.clipboard.writeText(exportJson).then(() => {
+      toast.success('JSON copié !');
+      setExportOpen(false);
+    }).catch(() => {
+      toast.error('Impossible de copier');
+    });
+  }, [exportJson]);
+
+  const exportJsonFile = useCallback(() => {
+    const blob = new Blob([exportJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lg-crates-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Fichier JSON téléchargé !');
+    setExportOpen(false);
+  }, [exportJson]);
 
   // ─── Keyboard shortcuts ───────────────────────────────
 
@@ -488,18 +510,35 @@ export default function CrateTracker() {
                     <Download className="h-3 w-3" /><span className="hidden sm:inline">Exporter</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-sm">
+                <DialogContent className="max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Exporter l&apos;historique</DialogTitle>
-                    <DialogDescription>Choisis le mode d&apos;export.</DialogDescription>
+                    <DialogDescription>{entries.length} entrée{entries.length > 1 ? 's' : ''} ({cycleRecordCount} crates, {enhancedCount} enhanced, {resetCount} reset)</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-2">
-                    <Button onClick={exportClipboard} className="w-full justify-start gap-2" variant="outline">
-                      <Save className="h-4 w-4" /> Copier dans le presse-papier
-                    </Button>
-                    <Button onClick={exportFile} className="w-full justify-start gap-2" variant="outline">
-                      <Download className="h-4 w-4" /> Télécharger un fichier .txt
-                    </Button>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs font-medium mb-1">Aperçu (texte compact)</p>
+                      <Textarea
+                        readOnly
+                        value={exportText}
+                        rows={3}
+                        className="text-[11px] font-mono bg-muted/50 resize-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button onClick={exportClipboard} className="justify-start gap-2" variant="outline" size="sm">
+                        <Save className="h-3.5 w-3.5" /> Clipboard .txt
+                      </Button>
+                      <Button onClick={exportFile} className="justify-start gap-2" variant="outline" size="sm">
+                        <Download className="h-3.5 w-3.5" /> Fichier .txt
+                      </Button>
+                      <Button onClick={exportJsonClipboard} className="justify-start gap-2" variant="outline" size="sm">
+                        <Save className="h-3.5 w-3.5" /> Clipboard .json
+                      </Button>
+                      <Button onClick={exportJsonFile} className="justify-start gap-2" variant="outline" size="sm">
+                        <Download className="h-3.5 w-3.5" /> Fichier .json
+                      </Button>
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
