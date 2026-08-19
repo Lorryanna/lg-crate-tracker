@@ -337,6 +337,53 @@ export function getCycleStats(
   return stats;
 }
 
+/**
+ * After a rank-up reset, the cycle start is known (position 0).
+ * Slice records into complete cycles + incomplete, without needing 210 records.
+ */
+export function scanPostReset(records: Rarity[]): ScanResult {
+  const numComplete = Math.floor(records.length / CYCLE_SIZE);
+  const incomplete = records.slice(numComplete * CYCLE_SIZE);
+
+  const cycles: Rarity[][] = [];
+  const cycleValidities: boolean[] = [];
+  const cycleErrors: (CycleErrorInfo | null)[] = [];
+  let totalDistance = 0;
+  let hasErrors = false;
+
+  for (let j = 0; j < numComplete; j++) {
+    const segment = records.slice(j * CYCLE_SIZE, (j + 1) * CYCLE_SIZE);
+    const valid = isValidCycle(segment);
+    const errorInfo = getCycleErrorInfo(segment);
+    cycles.push(segment);
+    cycleValidities.push(valid);
+    cycleErrors.push(errorInfo.distance > 0 ? errorInfo : null);
+    totalDistance += errorInfo.distance;
+    if (errorInfo.distance > 0) hasErrors = true;
+  }
+
+  const incompleteErrors = incomplete.length > 0 ? getCycleErrorInfo(incomplete) : null;
+
+  return {
+    valid: true,
+    cycleStart: 0,
+    currentCyclePosition: incomplete.length,
+    currentCycle: cycles.length > 0 ? cycles[cycles.length - 1] : [],
+    cycleHistory: cycles,
+    cycleValidities,
+    totalCycles: numComplete,
+    incompleteCycle: incomplete,
+    message: numComplete > 0
+      ? `${numComplete} cycle${numComplete > 1 ? 's' : ''} post-rank up • Position : ${incomplete.length}/${CYCLE_SIZE}`
+      : `Cycle post-rank up — position ${records.length}/${CYCLE_SIZE}`,
+    hasErrors,
+    totalDistance,
+    cycleErrors,
+    incompleteCycleErrors: incompleteErrors,
+    windowStart: 0,
+  };
+}
+
 // ─── Import / Export ────────────────────────────────────────
 
 /**

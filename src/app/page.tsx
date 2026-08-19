@@ -50,6 +50,7 @@ import {
   MIN_RECORDS,
   EXPECTED,
   scanCycles,
+  scanPostReset,
   getCycleStats,
   parseImportText,
   exportEntriesText,
@@ -192,7 +193,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v4.0.2';
+const APP_VERSION = 'v4.0.3';
 
 export default function CrateTracker() {
   const entries = useSyncExternalStore(
@@ -232,23 +233,7 @@ export default function CrateTracker() {
     }
     // After a reset, cycle start is known: position 0
     if (hasReset && cycleRecords.length > 0) {
-      const pos = cycleRecords.length;
-      return {
-        valid: true,
-        cycleStart: 0,
-        currentCyclePosition: pos,
-        currentCycle: [],
-        cycleHistory: [],
-        cycleValidities: [],
-        totalCycles: 0,
-        incompleteCycle: cycleRecords,
-        message: `Cycle post-rank up — position ${pos}/${CYCLE_SIZE}`,
-        hasErrors: false,
-        totalDistance: 0,
-        cycleErrors: [],
-        incompleteCycleErrors: null,
-        windowStart: 0,
-      };
+      return scanPostReset(cycleRecords);
     }
     return null;
   }, [cycleRecords, hasReset]);
