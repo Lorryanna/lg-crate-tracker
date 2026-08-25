@@ -193,7 +193,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v4.0.4';
+const APP_VERSION = 'v4.0.5';
 
 export default function CrateTracker() {
   const entries = useSyncExternalStore(
@@ -228,12 +228,13 @@ export default function CrateTracker() {
   const hasReset = useMemo(() => entries.some(isResetEntry), [entries]);
 
   const scanResult: ScanResult | null = useMemo(() => {
-    // After a reset, cycle start is known (position 0) — always use scanPostReset
-    if (hasReset && cycleRecords.length > 0) {
-      return scanPostReset(cycleRecords);
-    }
+    // extractCycleRecords already filters to post-reset data only
     if (cycleRecords.length >= MIN_RECORDS) {
       return scanCycles(cycleRecords);
+    }
+    // After a reset with <210 records: cycle start is known (position 0)
+    if (hasReset && cycleRecords.length > 0) {
+      return scanPostReset(cycleRecords);
     }
     return null;
   }, [cycleRecords, hasReset]);
