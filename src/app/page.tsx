@@ -667,7 +667,7 @@ export default function CrateTracker() {
                               key={i}
                               className={`flex items-center gap-1 px-1 py-px rounded text-[11px] ${isHighlighted ? 'crate-flash' : ''}`}
                             >
-                              <span className="text-muted-foreground font-mono w-5 text-right shrink-0">
+                              <span className="text-muted-foreground font-mono w-12 text-right shrink-0">
                                 <span className="text-pink-400">✨</span>{i + 1}
                               </span>
                               <span
@@ -695,7 +695,7 @@ export default function CrateTracker() {
                               key={i}
                               className={`flex items-center gap-1 px-1 py-px rounded text-[11px] ${config.color}${isHighlighted ? ' crate-flash' : ''}`}
                             >
-                              <span className="text-muted-foreground font-mono w-5 text-right shrink-0">
+                              <span className="text-muted-foreground font-mono w-12 text-right shrink-0">
                                 {i + 1}
                               </span>
                               <span
