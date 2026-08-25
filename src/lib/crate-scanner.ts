@@ -1,5 +1,5 @@
 /**
- * Lust Goddess Crate Cycle Scanner (v4.0.0 — reset + enhanced crates)
+ * Lust Goddess Crate Cycle Scanner
  * 
  * The game uses a shuffled pool of 70 crates per cycle:
  * - 56 Rare
@@ -7,60 +7,20 @@
  * - 3 Epic
  * - 1 Legendary
  * 
- * v3.0.0: Sliding window à 140 (2 cycles complets).
- * v3.1.0: Fenêtre repassée à 210 (3 cycles complets).
- * v3.2.0: Poids Legendary pour éviter les cycles sans Legendary.
- * v3.3.0: Scoring pondéré par rareté (R/B=1, E=5, L=20).
- * v3.4.0: Le scoring tranche seul, plus de surcharge « plus récent ».
- * v4.0.0: Support des enhanced crates (hors cycle) et des resets (rank up).
- *   - RecordEntry: type unifié pour crate/reset/enhanced.
- *   - extractCycleRecords() filtre les entrées pour le scanner.
+ * Supports post-reset (Rank Up) mode where the cycle start is known (position 0
+ * of post-reset data).
  */
 
 export type Rarity = 'Rare' | 'Big Rare' | 'Epic' | 'Legendary';
 
-// ─── Record entry types ─────────────────────────────────────
-
-/** Normal crate (part of the 70-cycle) */
-export type CrateEntry = { t: 'c'; r: Rarity };
-/** Enhanced crate (hors cycle — boosted rarity from league breach) */
-export type EnhancedEntry = { t: 'e'; r: Rarity };
-/** Cycle reset (league breach / rank up) */
-export type ResetEntry = { t: 'r' };
-
-export type RecordEntry = CrateEntry | EnhancedEntry | ResetEntry;
-
-export function isCrateEntry(e: RecordEntry): e is CrateEntry {
-  return e.t === 'c';
-}
-
-export function isEnhancedEntry(e: RecordEntry): e is EnhancedEntry {
-  return e.t === 'e';
-}
-
-export function isResetEntry(e: RecordEntry): e is ResetEntry {
-  return e.t === 'r';
-}
-
-// ─── Cycle constants ────────────────────────────────────────
-
 export const CYCLE_SIZE = 70;
-export const SCAN_WINDOW = CYCLE_SIZE * 3; // 210
-export const MIN_RECORDS = CYCLE_SIZE * 3; // 210
+export const MIN_RECORDS = CYCLE_SIZE * 3; // 210 for scan mode
 
 export const EXPECTED: Record<Rarity, number> = {
   'Rare': 56,
   'Big Rare': 10,
   'Epic': 3,
   'Legendary': 1,
-};
-
-// Poids de scoring par rareté — basé sur la probabilité d'erreur selon la couleur:
-const SCORE_WEIGHTS: Record<Rarity, number> = {
-  'Rare': 1,
-  'Big Rare': 1,
-  'Epic': 5,
-  'Legendary': 20,
 };
 
 export const RARITY_COLORS: Record<Rarity, { bg: string; text: string; border: string; dot: string; solid: string; ring: string }> = {
@@ -78,10 +38,28 @@ export const RARITY_SHORT: Record<Rarity, string> = {
 };
 
 export const SHORT_TO_RARITY: Record<string, Rarity> = {
-  'R': 'Rare', 'B': 'Big Rare', 'E': 'Epic', 'L': 'Legendary',
-  'r': 'Rare', 'b': 'Big Rare', 'e': 'Epic', 'l': 'Legendary',
-  'rare': 'Rare', 'big rare': 'Big Rare', 'bigrare': 'Big Rare',
-  'epic': 'Epic', 'legendary': 'Legendary', 'lg': 'Legendary', 'br': 'Big Rare',
+  'R': 'Rare',
+  'B': 'Big Rare',
+  'E': 'Epic',
+  'L': 'Legendary',
+  'r': 'Rare',
+  'b': 'Big Rare',
+  'e': 'Epic',
+  'l': 'Legendary',
+  'rare': 'Rare',
+  'big rare': 'Big Rare',
+  'bigrare': 'Big Rare',
+  'epic': 'Epic',
+  'legendary': 'Legendary',
+  'lg': 'Legendary',
+  'br': 'Big Rare',
+};
+
+export const RARITY_TO_SHORT: Record<Rarity, string> = {
+  'Rare': 'R',
+  'Big Rare': 'B',
+  'Epic': 'E',
+  'Legendary': 'L',
 };
 
 export interface CycleStats {
@@ -89,68 +67,74 @@ export interface CycleStats {
   remaining: number;
 }
 
-export interface RarityDeviation {
-  expected: number;
-  actual: number;
-  diff: number;
-}
-
 export interface CycleErrorInfo {
-  distance: number;
-  details: Record<Rarity, RarityDeviation>;
+  missing: Partial<Record<Rarity, number>>;  // expected count - actual count (negative = extra)
+  hasError: boolean;
 }
 
 export interface ScanResult {
   valid: boolean;
-  cycleStart: number; // index within cycleRecords array
-  currentCyclePosition: number;
-  currentCycle: Rarity[];
-  cycleHistory: Rarity[][];
-  cycleValidities: boolean[];
+  cycleStart: number; // 0-based index in the input records where the cycle starts
+  currentCyclePosition: number; // 0-69 position within the current (incomplete) cycle
+  currentCycle: Rarity[]; // The 70 items of the most recent COMPLETE cycle
+  cycleHistory: Rarity[][]; // All complete cycles found
+  cycleValidities: boolean[]; // Whether each cycle is valid
+  cycleErrors: CycleErrorInfo[]; // Per-cycle error details
   totalCycles: number;
-  incompleteCycle: Rarity[];
+  incompleteCycle: Rarity[]; // Items after the last complete cycle (current in-progress cycle)
   message: string;
-  hasErrors: boolean;
-  totalDistance: number;
-  cycleErrors: (CycleErrorInfo | null)[];
-  incompleteCycleErrors: CycleErrorInfo | null;
-  windowStart: number; // index where the sliding window begins within cycleRecords
 }
 
-// ─── Extract cycle-only records for scanning ───────────────
+// ─── Record Entry types ────────────────────────────────────
+
+export type RecordEntry =
+  | { t: 'c'; r: Rarity }   // normal crate
+  | { t: 'e'; r: Rarity }   // enhanced crate (hors cycle)
+  | { t: 'r' };             // reset marker (rank up)
+
+export function isResetEntry(e: RecordEntry): e is { t: 'r' } {
+  return e.t === 'r';
+}
+
+export function isEnhancedEntry(e: RecordEntry): e is { t: 'e'; r: Rarity } {
+  return e.t === 'e';
+}
+
+export function isCrateEntry(e: RecordEntry): e is { t: 'c'; r: Rarity } {
+  return e.t === 'c';
+}
 
 /**
- * From the full entry list, extract only cycle crates after the last reset.
- * Enhanced crates and pre-reset data are excluded from scanning.
+ * Extract only normal crate entries after the LAST reset.
+ * Enhanced ('e') entries are excluded from cycle tracking.
+ * If there's no reset, returns all normal crate entries.
  */
-export function extractCycleRecords(entries: RecordEntry[]): Rarity[] {
+export function extractCycleRecords(records: RecordEntry[]): Rarity[] {
+  // Find the position of the last reset
   let lastResetIdx = -1;
-  for (let i = entries.length - 1; i >= 0; i--) {
-    if (entries[i].t === 'r') {
+  for (let i = records.length - 1; i >= 0; i--) {
+    if (records[i].t === 'r') {
       lastResetIdx = i;
       break;
     }
   }
-  const rarities: Rarity[] = [];
-  for (let i = lastResetIdx + 1; i < entries.length; i++) {
-    if (entries[i].t === 'c') {
-      rarities.push((entries[i] as CrateEntry).r);
+
+  // Return only normal crates ('c') after the last reset
+  const result: Rarity[] = [];
+  for (let i = lastResetIdx + 1; i < records.length; i++) {
+    if (records[i].t === 'c') {
+      result.push((records[i] as { t: 'c'; r: Rarity }).r);
     }
   }
-  return rarities;
+  return result;
 }
 
-/** Count enhanced crates (for display) */
-export function countEnhanced(entries: RecordEntry[]): number {
-  return entries.filter((e) => e.t === 'e').length;
+/** Check if there's any reset in the records */
+export function hasResetMarker(records: RecordEntry[]): boolean {
+  return records.some(e => e.t === 'r');
 }
 
-/** Count resets (for display) */
-export function countResets(entries: RecordEntry[]): number {
-  return entries.filter((e) => e.t === 'r').length;
-}
-
-// ─── Internal scanner helpers ───────────────────────────────
+// ─── Internal helpers ──────────────────────────────────────
 
 function countRarities(segment: Rarity[]): Record<Rarity, number> {
   const counts: Record<Rarity, number> = { 'Rare': 0, 'Big Rare': 0, 'Epic': 0, 'Legendary': 0 };
@@ -169,177 +153,158 @@ function isValidCycle(segment: Rarity[]): boolean {
   return true;
 }
 
-function cycleDistance(segment: Rarity[]): number {
-  if (segment.length !== CYCLE_SIZE) return Infinity;
-  const counts = countRarities(segment);
-  let distance = 0;
-  for (const rarity of Object.keys(EXPECTED) as Rarity[]) {
-    distance += Math.abs(counts[rarity] - EXPECTED[rarity]);
-  }
-  return distance;
-}
-
 function getCycleErrorInfo(segment: Rarity[]): CycleErrorInfo {
+  if (segment.length !== CYCLE_SIZE) return { missing: {}, hasError: false };
   const counts = countRarities(segment);
-  const details: Record<Rarity, RarityDeviation> = {} as Record<Rarity, RarityDeviation>;
-  let distance = 0;
+  const missing: Partial<Record<Rarity, number>> = {};
+  let hasError = false;
   for (const rarity of Object.keys(EXPECTED) as Rarity[]) {
-    const actual = counts[rarity];
-    const diff = actual - EXPECTED[rarity];
-    distance += Math.abs(diff);
-    details[rarity] = { expected: EXPECTED[rarity], actual, diff };
+    const diff = counts[rarity] - EXPECTED[rarity];
+    if (diff !== 0) {
+      missing[rarity] = diff;
+      hasError = true;
+    }
   }
-  return { distance, details };
+  return { missing, hasError };
 }
 
-// ─── Scanner ────────────────────────────────────────────────
+// ─── Scan without reset (original algorithm) ──────────────
 
 export function scanCycles(records: Rarity[]): ScanResult {
   const defaultResult: ScanResult = {
-    valid: false, cycleStart: -1, currentCyclePosition: -1,
-    currentCycle: [], cycleHistory: [], cycleValidities: [],
-    totalCycles: 0, incompleteCycle: [], message: '',
-    hasErrors: false, totalDistance: 0, cycleErrors: [],
-    incompleteCycleErrors: null, windowStart: 0,
+    valid: false,
+    cycleStart: -1,
+    currentCyclePosition: -1,
+    currentCycle: [],
+    cycleHistory: [],
+    cycleValidities: [],
+    cycleErrors: [],
+    totalCycles: 0,
+    incompleteCycle: [],
+    message: '',
   };
 
   if (records.length < MIN_RECORDS) {
     const needed = MIN_RECORDS - records.length;
-    defaultResult.message = `Besoin d'au moins ${MIN_RECORDS} enregistrements pour scanner. Actuel: ${records.length}. Il en manque ${needed}!`;
+    defaultResult.message = `Besoin d'au moins 210 enregistrements (3 cycles complets) pour scanner. Actuel: ${records.length}. Il en manque ${needed}!`;
     return defaultResult;
   }
 
-  // ─── Sliding window ───
-  let windowRecords: Rarity[];
-  let windowOffset: number;
-  if (records.length > SCAN_WINDOW) {
-    windowRecords = records.slice(-SCAN_WINDOW);
-    windowOffset = records.length - SCAN_WINDOW;
-  } else {
-    windowRecords = records;
-    windowOffset = 0;
-  }
-
-  // ─── Fuzzy scoring ───
-  let bestScore = -Infinity;
+  // Try each possible start position
+  let bestScore = -1;
   let bestStart = 0;
-  let bestPerfectCount = 0;
-  let bestWeightedDist = 0;
+  const validStarts: number[] = [];
 
-  const maxStart = windowRecords.length - CYCLE_SIZE;
+  const maxStart = records.length - CYCLE_SIZE;
 
   for (let i = 0; i <= maxStart; i++) {
-    const remaining = windowRecords.length - i;
+    let score = 0;
+    let allValid = true;
+    const remaining = records.length - i;
     const numCycles = Math.floor(remaining / CYCLE_SIZE);
-    let perfectCount = 0;
-    let weightedDistance = 0;
 
     for (let j = 0; j < numCycles; j++) {
       const segStart = i + j * CYCLE_SIZE;
-      const segment = windowRecords.slice(segStart, segStart + CYCLE_SIZE);
-      const counts = countRarities(segment);
-      let segWeightedDist = 0;
-      let segPerfect = true;
-      for (const rarity of Object.keys(EXPECTED) as Rarity[]) {
-        const diff = Math.abs(counts[rarity] - EXPECTED[rarity]);
-        if (diff > 0) segPerfect = false;
-        segWeightedDist += diff * SCORE_WEIGHTS[rarity];
+      const segment = records.slice(segStart, segStart + CYCLE_SIZE);
+      if (isValidCycle(segment)) {
+        const weight = Math.floor((j + 1) / numCycles) * j;
+        score += weight + 1;
+      } else {
+        allValid = false;
       }
-      weightedDistance += segWeightedDist * (1 + j * 0.15);
-      if (segPerfect) perfectCount++;
     }
 
-    const score = (perfectCount * 10000) - weightedDistance;
-    if (score > bestScore) {
+    if (score >= bestScore) {
       bestScore = score;
       bestStart = i;
-      bestPerfectCount = perfectCount;
-      bestWeightedDist = weightedDistance;
+    }
+
+    if (allValid && numCycles > 0) {
+      validStarts.push(i);
     }
   }
 
-  const chosenStart = bestStart;
-  const isPerfect = bestWeightedDist === 0 && bestPerfectCount > 0;
+  // Determine which start to use
+  let chosenStart: number = 0;
+  let isPerfect = false;
 
-  if (isPerfect) {
-    const rem = windowRecords.length - chosenStart;
-    const nc = Math.floor(rem / CYCLE_SIZE);
-    defaultResult.message = `${nc} cycle${nc > 1 ? 's' : ''} parfait${nc > 1 ? 's' : ''} trouvé${nc > 1 ? 's' : ''} ! 🎯`;
+  if (validStarts.length === 0) {
+    chosenStart = bestStart;
+    defaultResult.message = "Aucune correspondance parfaite trouvée. Il peut y avoir des erreurs dans l' historique. Meilleure estimation affichée.";
+  } else if (validStarts.length === 1) {
+    chosenStart = validStarts[0];
+    isPerfect = true;
+    defaultResult.message = 'Correspondance de cycle parfaite trouvée ! 🎯';
   } else {
-    const rem = windowRecords.length - chosenStart;
-    const nc = Math.floor(rem / CYCLE_SIZE);
-    let totalDist = 0;
-    for (let j = 0; j < nc; j++) {
-      totalDist += cycleDistance(windowRecords.slice(chosenStart + j * CYCLE_SIZE, chosenStart + j * CYCLE_SIZE + CYCLE_SIZE));
+    // Multiple valid starts - pick the one with highest score
+    let bestValidScore = -1;
+    for (const vs of validStarts) {
+      const remaining = records.length - vs;
+      const numCycles = Math.floor(remaining / CYCLE_SIZE);
+      let vsScore = 0;
+      for (let j = 0; j < numCycles; j++) {
+        const segStart = vs + j * CYCLE_SIZE;
+        const segment = records.slice(segStart, segStart + CYCLE_SIZE);
+        if (isValidCycle(segment)) {
+          const weight = Math.floor((j + 1) / numCycles) * j;
+          vsScore += weight + 1;
+        }
+      }
+      if (vsScore > bestValidScore) {
+        bestValidScore = vsScore;
+        chosenStart = vs;
+      }
     }
-    defaultResult.message = `Aucun cycle parfait trouvé (écart total: ${totalDist}). Meilleure estimation affichée — erreurs de saisie probables.`;
+    isPerfect = true;
+    defaultResult.message = `${validStarts.length} positions de départ possibles trouvées. La plus optimale est affichée. Plus de données peuvent préciser.`;
   }
 
-  // ─── Extract cycles ───
-  const remaining = windowRecords.length - chosenStart;
+  // Extract cycles from the chosen start
+  const remaining = records.length - chosenStart;
   const numCycles = Math.floor(remaining / CYCLE_SIZE);
   const cycles: Rarity[][] = [];
   const cycleValidities: boolean[] = [];
-  const cycleErrors: (CycleErrorInfo | null)[] = [];
-  let totalDistance = 0;
-  let hasErrors = false;
+  const cycleErrors: CycleErrorInfo[] = [];
 
   for (let j = 0; j < numCycles; j++) {
     const segStart = chosenStart + j * CYCLE_SIZE;
-    const segment = windowRecords.slice(segStart, segStart + CYCLE_SIZE);
-    const valid = isValidCycle(segment);
-    const errorInfo = getCycleErrorInfo(segment);
+    const segment = records.slice(segStart, segStart + CYCLE_SIZE);
     cycles.push(segment);
-    cycleValidities.push(valid);
-    cycleErrors.push(errorInfo.distance > 0 ? errorInfo : null);
-    totalDistance += errorInfo.distance;
-    if (errorInfo.distance > 0) hasErrors = true;
+    cycleValidities.push(isValidCycle(segment));
+    cycleErrors.push(getCycleErrorInfo(segment));
   }
 
-  const incomplete = windowRecords.slice(chosenStart + numCycles * CYCLE_SIZE);
-  const incompleteErrors = incomplete.length > 0 ? getCycleErrorInfo(incomplete) : null;
+  const incomplete = records.slice(chosenStart + numCycles * CYCLE_SIZE);
 
   const currentCycle = cycles.length > 0 ? cycles[cycles.length - 1] : [];
   const currentCyclePosition = incomplete.length;
-  const absoluteCycleStart = chosenStart + windowOffset;
 
-  const hasCycleWithoutLegendary = cycles.some(
-    (c) => c.length === CYCLE_SIZE && countRarities(c)['Legendary'] === 0
-  );
-  defaultResult.valid = !hasCycleWithoutLegendary &&
-    (isPerfect || cycleValidities.filter(Boolean).length > 0 || totalDistance <= numCycles * 6);
-  defaultResult.cycleStart = absoluteCycleStart;
+  defaultResult.valid = isPerfect || cycleValidities.filter(Boolean).length > 0;
+  defaultResult.cycleStart = chosenStart;
   defaultResult.currentCyclePosition = currentCyclePosition;
   defaultResult.currentCycle = currentCycle;
   defaultResult.cycleHistory = cycles;
   defaultResult.cycleValidities = cycleValidities;
+  defaultResult.cycleErrors = cycleErrors;
   defaultResult.totalCycles = numCycles;
   defaultResult.incompleteCycle = incomplete;
-  defaultResult.hasErrors = hasErrors;
-  defaultResult.totalDistance = totalDistance;
-  defaultResult.cycleErrors = cycleErrors;
-  defaultResult.incompleteCycleErrors = incompleteErrors;
-  defaultResult.windowStart = windowOffset;
+
+  if (!defaultResult.message) {
+    defaultResult.message = `${numCycles} cycle(s) trouvé(s) à partir de l' enregistrement #${chosenStart + 1}.`;
+  }
 
   return defaultResult;
 }
 
-export function getCycleStats(
-  incompleteCycle: Rarity[],
-  _lastCompleteCycle?: Rarity[]
-): Record<Rarity, CycleStats> {
-  const counts = countRarities(incompleteCycle);
-  const stats: Record<Rarity, CycleStats> = {} as Record<Rarity, CycleStats>;
-  for (const rarity of Object.keys(EXPECTED) as Rarity[]) {
-    const dropped = counts[rarity];
-    stats[rarity] = { dropped, remaining: EXPECTED[rarity] - dropped };
-  }
-  return stats;
-}
+// ─── Scan after reset (cycle start is known = position 0) ──
 
 /**
- * After a rank-up reset, the cycle start is known (position 0).
- * Slice records into complete cycles + incomplete, without needing 210 records.
+ * Scan records that come after a reset. Since the cycle start is known
+ * (it's the first crate after the reset), we simply divide into 70-crate
+ * cycles starting at position 0.
+ * 
+ * Errors are detected and reported per cycle but we do NOT try to find
+ * a different cycle start — the reset guarantees position 0 is correct.
  */
 export function scanPostReset(records: Rarity[]): ScanResult {
   const numComplete = Math.floor(records.length / CYCLE_SIZE);
@@ -347,142 +312,166 @@ export function scanPostReset(records: Rarity[]): ScanResult {
 
   const cycles: Rarity[][] = [];
   const cycleValidities: boolean[] = [];
-  const cycleErrors: (CycleErrorInfo | null)[] = [];
-  let totalDistance = 0;
-  let hasErrors = false;
+  const cycleErrors: CycleErrorInfo[] = [];
 
   for (let j = 0; j < numComplete; j++) {
-    const segment = records.slice(j * CYCLE_SIZE, (j + 1) * CYCLE_SIZE);
-    const valid = isValidCycle(segment);
-    const errorInfo = getCycleErrorInfo(segment);
+    const segStart = j * CYCLE_SIZE;
+    const segment = records.slice(segStart, segStart + CYCLE_SIZE);
     cycles.push(segment);
+    const valid = isValidCycle(segment);
     cycleValidities.push(valid);
-    cycleErrors.push(errorInfo.distance > 0 ? errorInfo : null);
-    totalDistance += errorInfo.distance;
-    if (errorInfo.distance > 0) hasErrors = true;
+    cycleErrors.push(getCycleErrorInfo(segment));
   }
 
-  const incompleteErrors = incomplete.length > 0 ? getCycleErrorInfo(incomplete) : null;
+  // Check if any cycle has errors
+  const hasAnyError = cycleErrors.some(e => e.hasError);
+  const allValid = cycleValidities.every(Boolean);
+
+  // Build message
+  let message = '';
+  if (records.length === 0) {
+    message = 'Aucun enregistrement après le Rank Up.';
+  } else if (numComplete === 0) {
+    message = `Cycle post-Rank Up — position ${incomplete.length}/${CYCLE_SIZE}`;
+  } else if (allValid) {
+    message = `${numComplete} cycle(s) post-Rank Up trouvé(s) — tout est cohérent ✓`;
+  } else {
+    const errorCount = cycleErrors.filter(e => e.hasError).length;
+    message = `${numComplete} cycle(s) post-Rank Up — ${errorCount} cycle(s) avec anomalie(s) détectée(s). Le démarrage au Rank Up reste fiable.`;
+  }
+
+  const currentCycle = cycles.length > 0 ? cycles[cycles.length - 1] : [];
 
   return {
-    valid: true,
-    cycleStart: 0,
+    valid: true, // Post-reset always has a valid known start
+    cycleStart: 0, // Always 0 for post-reset
     currentCyclePosition: incomplete.length,
-    currentCycle: cycles.length > 0 ? cycles[cycles.length - 1] : [],
+    currentCycle,
     cycleHistory: cycles,
     cycleValidities,
+    cycleErrors,
     totalCycles: numComplete,
     incompleteCycle: incomplete,
-    message: numComplete > 0
-      ? `${numComplete} cycle${numComplete > 1 ? 's' : ''} post-rank up • Position : ${incomplete.length}/${CYCLE_SIZE}`
-      : `Cycle post-rank up — position ${records.length}/${CYCLE_SIZE}`,
-    hasErrors,
-    totalDistance,
-    cycleErrors,
-    incompleteCycleErrors: incompleteErrors,
-    windowStart: 0,
+    message,
   };
 }
 
-// ─── Import / Export ────────────────────────────────────────
+// ─── Cycle stats ───────────────────────────────────────────
 
-/**
- * Parse import text. Supports:
- * - Old format: R, B, E, L, r, b, e, l
- * - New format: *R, *B (enhanced), [RESET]
- * - Compact: RRBELL
- */
-export function parseImportText(text: string): RecordEntry[] {
+export function getCycleStats(
+  incompleteCycle: Rarity[],
+  lastCompleteCycle?: Rarity[]
+): Record<Rarity, CycleStats> {
+  const counts = countRarities(incompleteCycle);
+  const stats: Record<Rarity, CycleStats> = {} as Record<Rarity, CycleStats>;
+  for (const rarity of Object.keys(EXPECTED) as Rarity[]) {
+    const dropped = counts[rarity];
+    stats[rarity] = {
+      dropped,
+      remaining: EXPECTED[rarity] - dropped,
+    };
+  }
+  return stats;
+}
+
+// ─── Import parsing (old format — just rarities) ───────────
+
+export function parseImportText(text: string): Rarity[] {
   const cleaned = text.trim();
   if (!cleaned) return [];
 
-  // Split by newlines first (for line-based [RESET] markers)
-  const lines = cleaned.split(/\n/).filter(Boolean);
-  const entries: RecordEntry[] = [];
+  let tokens = cleaned.split(/[,;\t\n\r|\s]+/).filter(Boolean);
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+  // If it's a single long string like "RRRBREEERRLLBBBR", split into individual chars
+  if (tokens.length === 1 && tokens[0].length > 1 && /^[rRbBeElL]+$/.test(tokens[0])) {
+    tokens = tokens[0].split('');
+  }
+
+  const rarities: Rarity[] = [];
+  for (const token of tokens) {
+    const trimmed = token.trim();
     if (!trimmed) continue;
-
-    // Check for [RESET] marker
-    if (/^\[RESET\]$/i.test(trimmed)) {
-      entries.push({ t: 'r' });
-      continue;
-    }
-
-    // Split tokens by comma/semicolon/tab/space/pipe
-    let tokens = trimmed.split(/[,;\t\r|\s]+/).filter(Boolean);
-
-    // Compact single-string format: RRBELL
-    if (tokens.length === 1 && tokens[0].length > 1 && /^[rRbBeElL*]+$/.test(tokens[0])) {
-      tokens = tokens[0].split('');
-    }
-
-    let i = 0;
-    while (i < tokens.length) {
-      const token = tokens[i].trim();
-      if (!token) { i++; continue; }
-
-      // Enhanced marker: *R, *B, *E, *L
-      if (token.startsWith('*') && token.length >= 2) {
-        const key = token.slice(1).toUpperCase();
-        const rarity = SHORT_TO_RARITY[key];
-        if (rarity) {
-          entries.push({ t: 'e', r: rarity });
-        }
-        i++;
-        continue;
+    const upper = trimmed.toUpperCase();
+    if (['R', 'B', 'E', 'L'].includes(upper)) {
+      rarities.push(SHORT_TO_RARITY[upper]);
+    } else {
+      const lower = trimmed.toLowerCase();
+      const mapped = SHORT_TO_RARITY[lower];
+      if (mapped) {
+        rarities.push(mapped);
       }
-
-      // Normal rarity
-      const upper = token.toUpperCase();
-      if (['R', 'B', 'E', 'L'].includes(upper)) {
-        entries.push({ t: 'c', r: SHORT_TO_RARITY[upper] });
-        i++;
-        continue;
-      }
-
-      // Full names
-      const lower = token.toLowerCase();
-      if (lower === '[reset]') {
-        entries.push({ t: 'r' });
-      } else {
-        const mapped = SHORT_TO_RARITY[lower];
-        if (mapped) {
-          entries.push({ t: 'c', r: mapped });
-        }
-      }
-      i++;
     }
   }
-  return entries;
+  return rarities;
 }
 
-/** Export entries to text format */
-export function exportEntriesText(entries: RecordEntry[]): string {
-  return entries.map((e) => {
-    if (e.t === 'r') return '[RESET]';
-    if (e.t === 'e') return `*${RARITY_SHORT[e.r]}`;
-    return RARITY_SHORT[e.r];
-  }).join(', ');
-}
+// ─── Export/Import in new RecordEntry format ────────────────
 
 /**
- * Migrate old format (Rarity[]) to new format (RecordEntry[]).
- * Returns null if already in new format.
+ * Parse new format export text into RecordEntry array.
+ * Format: each line is "c:R" (normal), "e:B" (enhanced), or "r" (reset)
+ * Also supports JSON array of RecordEntry.
  */
-export function migrateOldFormat(data: unknown): RecordEntry[] | null {
-  if (!Array.isArray(data)) return null;
-  if (data.length === 0) return [];
-  const first = data[0];
-  // New format: first element is an object with 't' property
-  if (typeof first === 'object' && first !== null && 't' in first) return null;
-  // Old format: array of strings
-  if (typeof first === 'string') {
-    return (data as string[]).map((s) => {
-      const rarity = SHORT_TO_RARITY[s] || SHORT_TO_RARITY[s.toLowerCase()];
-      return rarity ? { t: 'c' as const, r: rarity } : { t: 'c' as const, r: 'Rare' as Rarity };
-    });
+export function parseImportNewFormat(text: string): RecordEntry[] | null {
+  const cleaned = text.trim();
+  if (!cleaned) return null;
+
+  // Try JSON parse first
+  if (cleaned.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(parsed)) {
+        const entries: RecordEntry[] = [];
+        for (const item of parsed) {
+          if (typeof item === 'object' && item !== null) {
+            if (item.t === 'r') {
+              entries.push({ t: 'r' });
+            } else if (item.t === 'c' || item.t === 'e') {
+              const rarity = item.r as Rarity;
+              if (rarity && RARITY_SHORT[rarity]) {
+                entries.push({ t: item.t, r: rarity });
+              }
+            }
+          }
+        }
+        if (entries.length > 0) return entries;
+      }
+    } catch {
+      // Not valid JSON, try line format
+    }
   }
-  return null;
+
+  // Try line format: c:R, e:B, r
+  const lines = cleaned.split(/[\n\r]+/).filter(Boolean);
+  const entries: RecordEntry[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === 'r' || trimmed === 'RESET' || trimmed === 'reset') {
+      entries.push({ t: 'r' });
+    } else if (trimmed.includes(':')) {
+      const [type, rarStr] = trimmed.split(':', 2);
+      const t = type.trim().toLowerCase();
+      const r = rarStr.trim().toUpperCase();
+      if ((t === 'c' || t === 'e') && ['R', 'B', 'E', 'L'].includes(r)) {
+        entries.push({ t, r: SHORT_TO_RARITY[r] });
+      }
+    }
+  }
+  return entries.length > 0 ? entries : null;
+}
+
+/** Export records to text format (one entry per line) */
+export function exportToText(records: RecordEntry[]): string {
+  return records.map(entry => {
+    if (entry.t === 'r') return 'r';
+    return `${entry.t}:${RARITY_TO_SHORT[entry.r]}`;
+  }).join('\n');
+}
+
+/** Export only the rarity sequence (old format, for compatibility) */
+export function exportToOldFormat(records: RecordEntry[]): string {
+  return records
+    .filter((e): e is { t: 'c'; r: Rarity } => e.t === 'c')
+    .map(e => RARITY_TO_SHORT[e.r])
+    .join(',');
 }
