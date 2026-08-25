@@ -193,7 +193,7 @@ function notifyListeners() {
   listeners.forEach((cb) => cb());
 }
 
-const APP_VERSION = 'v4.0.3';
+const APP_VERSION = 'v4.0.4';
 
 export default function CrateTracker() {
   const entries = useSyncExternalStore(
@@ -228,12 +228,12 @@ export default function CrateTracker() {
   const hasReset = useMemo(() => entries.some(isResetEntry), [entries]);
 
   const scanResult: ScanResult | null = useMemo(() => {
-    if (cycleRecords.length >= MIN_RECORDS) {
-      return scanCycles(cycleRecords);
-    }
-    // After a reset, cycle start is known: position 0
+    // After a reset, cycle start is known (position 0) — always use scanPostReset
     if (hasReset && cycleRecords.length > 0) {
       return scanPostReset(cycleRecords);
+    }
+    if (cycleRecords.length >= MIN_RECORDS) {
+      return scanCycles(cycleRecords);
     }
     return null;
   }, [cycleRecords, hasReset]);
